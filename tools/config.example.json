@@ -1,0 +1,14 @@
+{
+  "username": "emailul-tau@exemplu.ro",
+  "password": "parola-MyToyota",
+  "brand": "T",
+  "vin": "",
+  "latitude": 46.54,
+  "longitude": 24.56,
+  "heat_below": 12,
+  "cool_above": 24,
+  "heat_target": 22,
+  "cool_target": 20,
+  "defrost_below": 3,
+  "duration": 10
+}
