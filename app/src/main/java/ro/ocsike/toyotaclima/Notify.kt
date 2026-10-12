@@ -20,7 +20,7 @@ object Notify {
 
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Climatizare", NotificationManager.IMPORTANCE_DEFAULT)
+            NotificationChannel(CHANNEL, "Climate", NotificationManager.IMPORTANCE_DEFAULT)
         )
         val open = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java),

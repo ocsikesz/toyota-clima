@@ -181,7 +181,7 @@ class Prefs(context: Context) {
             Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY,
             Calendar.FRIDAY, Calendar.SATURDAY, Calendar.SUNDAY,
         )
-        val DAY_LABELS = listOf("L", "Ma", "Mi", "J", "V", "S", "D")
+        val DAY_LABELS = listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
 
         fun dateKey(cal: Calendar): String = String.format(
             Locale.US, "%04d-%02d-%02d",

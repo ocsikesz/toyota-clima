@@ -88,8 +88,8 @@ class MonthCalendarView(context: Context, private val prefs: Prefs) : View(conte
     }
 
     fun title(): String {
-        val s = SimpleDateFormat("LLLL yyyy", Locale("ro")).format(month.time)
-        return s.replaceFirstChar { it.titlecase(Locale("ro")) }
+        val s = SimpleDateFormat("LLLL yyyy", Locale.ENGLISH).format(month.time)
+        return s
     }
 
     // ---------- Geometrie ----------

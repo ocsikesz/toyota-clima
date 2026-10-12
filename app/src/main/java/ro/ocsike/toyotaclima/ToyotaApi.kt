@@ -53,7 +53,7 @@ class ToyotaApi(private val prefs: Prefs) {
 
     private fun login() {
         if (prefs.username.isBlank() || prefs.password.isBlank()) {
-            throw ToyotaException("Completează emailul și parola MyToyota.")
+            throw ToyotaException("Enter your MyToyota email and password in Settings.")
         }
         val tokenId = authenticate()
         val code = authorize(tokenId)
@@ -73,7 +73,7 @@ class ToyotaApi(private val prefs: Prefs) {
                 )
             ),
         )
-        if (resp.code != 200) throw ToyotaException("Obținere token eșuată (${resp.code}): ${resp.body.take(200)}")
+        if (resp.code != 200) throw ToyotaException("Token request failed (${resp.code}): ${resp.body.take(200)}")
         saveTokens(JSONObject(resp.body))
     }
 
@@ -92,7 +92,7 @@ class ToyotaApi(private val prefs: Prefs) {
                         type == "PasswordCallback" ->
                             cb.getJSONArray("input").getJSONObject(0).put("value", prefs.password)
                         type == "TextOutputCallback" && outValue == "User Not Found" ->
-                            throw ToyotaException("Contul MyToyota nu a fost găsit. Verifică emailul.")
+                            throw ToyotaException("MyToyota account not found. Check the email address.")
                     }
                 }
             }
@@ -102,12 +102,12 @@ class ToyotaApi(private val prefs: Prefs) {
                 data.toString(),
             )
             if (resp.code != 200) {
-                throw ToyotaException("Autentificare eșuată (${resp.code}). Verifică emailul și parola. ${resp.body.take(200)}")
+                throw ToyotaException("Sign-in failed (${resp.code}). Check the email and password. ${resp.body.take(200)}")
             }
             data = JSONObject(resp.body)
             if (data.has("tokenId")) return data.getString("tokenId")
         }
-        throw ToyotaException("Autentificare eșuată: nu am primit tokenId. Contul are autentificare în doi pași?")
+        throw ToyotaException("Sign-in failed: no tokenId received. Does the account use two-step verification?")
     }
 
     private fun authorize(tokenId: String): String {
@@ -116,14 +116,14 @@ class ToyotaApi(private val prefs: Prefs) {
             mapOf("cookie" to "iPlanetDirectoryPro=$tokenId"),
             followRedirects = false,
         )
-        if (resp.code != 302) throw ToyotaException("Autorizare eșuată (${resp.code}): ${resp.body.take(200)}")
-        val location = resp.header("location") ?: throw ToyotaException("Autorizare: lipsește redirect-ul.")
+        if (resp.code != 302) throw ToyotaException("Authorization failed (${resp.code}): ${resp.body.take(200)}")
+        val location = resp.header("location") ?: throw ToyotaException("Authorization: redirect missing.")
         val query = location.substringAfter('?', "")
         for (part in query.split('&')) {
             val k = part.substringBefore('=')
             if (k == "code") return URLDecoder.decode(part.substringAfter('='), "UTF-8")
         }
-        throw ToyotaException("Autorizare: nu găsesc codul în redirect.")
+        throw ToyotaException("Authorization: no code in the redirect.")
     }
 
     private fun refreshTokens() {
@@ -143,13 +143,13 @@ class ToyotaApi(private val prefs: Prefs) {
                 )
             ),
         )
-        if (resp.code != 200) throw ToyotaException("Refresh token eșuat (${resp.code})")
+        if (resp.code != 200) throw ToyotaException("Token refresh failed (${resp.code})")
         saveTokens(JSONObject(resp.body))
     }
 
     private fun saveTokens(json: JSONObject) {
         for (field in listOf("access_token", "id_token", "refresh_token", "expires_in")) {
-            if (!json.has(field)) throw ToyotaException("Răspuns token incomplet: lipsește $field")
+            if (!json.has(field)) throw ToyotaException("Incomplete token response: missing $field")
         }
         val idToken = json.getString("id_token")
         val parts = idToken.split('.')
@@ -224,9 +224,9 @@ class ToyotaApi(private val prefs: Prefs) {
         if (prefs.vin.isNotBlank()) return prefs.vin.trim()
         val json = api("GET", VEHICLES_ENDPOINT)
         val list = json.optJSONArray("payload")
-        if (list == null || list.length() == 0) throw ToyotaException("Nicio mașină în contul MyToyota.")
+        if (list == null || list.length() == 0) throw ToyotaException("No car found on the MyToyota account.")
         val vin = list.getJSONObject(0).optString("vin")
-        if (vin.isBlank()) throw ToyotaException("Nu pot citi VIN-ul mașinii.")
+        if (vin.isBlank()) throw ToyotaException("Can't read the car's VIN.")
         prefs.vin = vin
         return vin
     }

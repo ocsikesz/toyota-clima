@@ -15,7 +15,7 @@ object ClimaRunner {
             prefs.latitude, prefs.longitude,
         )
         val resp = Http.request("GET", url)
-        if (resp.code != 200) throw Exception("Open-Meteo a răspuns ${resp.code}")
+        if (resp.code != 200) throw Exception("Open-Meteo returned ${resp.code}")
         return JSONObject(resp.body).getJSONObject("current").getDouble("temperature_2m")
     }
 
@@ -25,15 +25,15 @@ object ClimaRunner {
         return when {
             temp < prefs.heatBelow -> {
                 val defrost = if (prefs.glassHeat) "on" else "off"
-                val glass = if (prefs.glassHeat) ", cu parbriz și lunetă" else ""
-                "Afară $t°C → încălzire la ${fmt(prefs.heatTarget)}°C$glass" to
+                val glass = if (prefs.glassHeat) ", with heated windshield and rear window" else ""
+                "Outside $t°C → heating to ${fmt(prefs.heatTarget)}°C$glass" to
                     startBody(prefs.heatTarget, prefs.duration, defrost)
             }
             temp > prefs.coolAbove -> {
-                "Afară $t°C → răcire la ${fmt(prefs.coolTarget)}°C" to
+                "Outside $t°C → cooling to ${fmt(prefs.coolTarget)}°C" to
                     startBody(prefs.coolTarget, prefs.duration, "off")
             }
-            else -> "Afară $t°C, între ${fmt(prefs.heatBelow)} și ${fmt(prefs.coolAbove)}°C → nu pornesc nimic" to null
+            else -> "Outside $t°C, between ${fmt(prefs.heatBelow)} and ${fmt(prefs.coolAbove)}°C → nothing to start" to null
         }
     }
 
@@ -49,9 +49,9 @@ object ClimaRunner {
             .put("saveSettings", false)
 
     private fun explainCode(code: String?): String = when (code) {
-        ToyotaApi.RETURN_OK -> "acceptată"
-        null -> "fără cod de răspuns"
-        else -> "respinsă (cod $code). Verifică: mașina încuiată, ușile închise, cheia nu e în mașină, climatizarea nu e deja pornită"
+        ToyotaApi.RETURN_OK -> "accepted"
+        null -> "no response code"
+        else -> "rejected (code $code). Check that the car is locked, the doors are closed, the key isn't inside and the climate isn't already running"
     }
 
     /** Rulează o acțiune și returnează mesajul pentru utilizator. Blochează: apelează din fundal. */
@@ -63,7 +63,7 @@ object ClimaRunner {
                 Mode.STOP -> {
                     val vin = api.resolveVin()
                     val code = api.climateControl(vin, JSONObject().put("command", "stop"))
-                    "Oprire climatizare: ${explainCode(code)}"
+                    "Stop climate: ${explainCode(code)}"
                 }
                 Mode.START_NOW -> {
                     // Pornire forțată: răcire dacă e cald afară, altfel încălzire
@@ -73,7 +73,7 @@ object ClimaRunner {
                     val defrost = if (!cool && prefs.glassHeat) "on" else "off"
                     val vin = api.resolveVin()
                     val code = api.climateControl(vin, startBody(target, prefs.duration, defrost))
-                    "Pornire manuală la ${fmt(target)}°C: ${explainCode(code)}"
+                    "Manual start at ${fmt(target)}°C: ${explainCode(code)}"
                 }
                 Mode.TEST, Mode.SCHEDULED -> {
                     val temp = outsideTemperature(prefs)
@@ -82,7 +82,7 @@ object ClimaRunner {
                         mode == Mode.TEST -> {
                             // Test: verifică și login-ul Toyota, fără să trimită comanda
                             val vin = api.resolveVin()
-                            "TEST: $text. Login Toyota OK, mașina ${vin.takeLast(6)}. Nu am trimis comanda."
+                            "TEST: $text. Toyota login OK, car …${vin.takeLast(6)}. No command sent."
                         }
                         body == null -> text
                         else -> {
@@ -93,9 +93,9 @@ object ClimaRunner {
                 }
             }
         } catch (e: ToyotaException) {
-            "Eroare: ${e.message}"
+            "Error: ${e.message}"
         } catch (e: Exception) {
-            "Eroare: ${e.javaClass.simpleName}: ${e.message}"
+            "Error: ${e.javaClass.simpleName}: ${e.message}"
         }
         prefs.log(message)
         return message

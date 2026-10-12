@@ -64,14 +64,14 @@ class MainActivity : Activity() {
 
     private val condensed: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
     private val medium: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-    private val ro = Locale("ro")
+    private val en = Locale.ENGLISH
 
     private val dp: Float by lazy { resources.displayMetrics.density }
     private fun px(v: Number) = (v.toFloat() * dp).toInt()
 
     // Navigare
     private val pages = mutableListOf<View>()
-    private val pageNames = listOf("Acasă", "Setări", "Jurnal")
+    private val pageNames = listOf("Home", "Settings", "Log")
     private var currentTab = TAB_HOME
     private val surface by lazy { getColor(R.color.surface) }
 
@@ -136,7 +136,7 @@ class MainActivity : Activity() {
         outState.putInt("tab", currentTab)
     }
 
-    @Deprecated("Navigarea înapoi duce întâi la Acasă")
+    @Deprecated("Back goes to Home first")
     override fun onBackPressed() {
         if (currentTab != TAB_HOME) showTab(TAB_HOME) else super.onBackPressed()
     }
@@ -150,7 +150,7 @@ class MainActivity : Activity() {
             loading = true
             eventsSwitch.isChecked = false
             loading = false
-            Toast.makeText(this, "Fără acces la calendar nu pot citi evenimentele.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Without calendar access the app can't read your events.", Toast.LENGTH_LONG).show()
         }
         reschedule()
         refreshAll()
@@ -184,7 +184,7 @@ class MainActivity : Activity() {
             setImageResource(R.drawable.ic_menu)
             imageTintList = ColorStateList.valueOf(ink)
             scaleType = ImageView.ScaleType.CENTER
-            contentDescription = "Meniu"
+            contentDescription = "Menu"
             isClickable = true
             isFocusable = true
             background = RippleDrawable(ColorStateList.valueOf(0x33808080), null, null)
@@ -273,11 +273,11 @@ class MainActivity : Activity() {
             background = rounded(heroBg, 22)
         }
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        top.addView(text("Următoarea pornire", 14, heroText).apply { alpha = 0.75f }, weightParams())
+        top.addView(text("Next start", 14, heroText).apply { alpha = 0.75f }, weightParams())
         heroSwitch = Switch(this).apply {
             thumbTintList = checkedTint(heat, 0xFFBFC8D4.toInt())
             trackTintList = checkedTint(heat, 0xFF5B6B80.toInt())
-            contentDescription = "Programare activă"
+            contentDescription = "Schedule on"
             setOnCheckedChangeListener { _, checked ->
                 if (loading) return@setOnCheckedChangeListener
                 prefs.enabled = checked
@@ -332,8 +332,8 @@ class MainActivity : Activity() {
 
         root.addView(
             text(
-                "Discurile pline sunt zilele din program, cele cu contur au un eveniment din calendar. " +
-                    "Atinge o zi ca s-o pornești sau s-o oprești doar pe ea; punctul arată ce ai schimbat.",
+                "Filled days follow your weekly schedule, outlined days have a calendar event. " +
+                    "Tap a day to turn it on or off just for that date; a dot marks the days you changed.",
                 13, muted,
             ).apply {
                 setPadding(0, px(10), 0, 0)
@@ -347,12 +347,12 @@ class MainActivity : Activity() {
     // =====================================================================
 
     private fun buildSettings() {
-        pageTitle("Setări")
+        pageTitle("Settings")
 
-        sectionTitle("Cont Toyota", first = true)
+        sectionTitle("Toyota account", first = true)
         etUser = field("Email", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
-        etPass = field("Parolă", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
-        etVin = field("VIN (gol = prima mașină din cont)", InputType.TYPE_CLASS_TEXT)
+        etPass = field("Password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        etVin = field("VIN (leave empty for the first car on the account)", InputType.TYPE_CLASS_TEXT)
 
         buildSchedule()
         buildTemperatures()
@@ -361,8 +361,8 @@ class MainActivity : Activity() {
     }
 
     private fun buildSchedule() {
-        sectionTitle("Program")
-        root.addView(text("În fiecare săptămână", 14, muted).apply { setPadding(0, 0, 0, px(8)) })
+        sectionTitle("Schedule")
+        root.addView(text("Every week", 14, muted).apply { setPadding(0, 0, 0, px(8)) })
 
         val row = LinearLayout(this)
         Prefs.DAY_ORDER.forEachIndexed { i, day ->
@@ -386,33 +386,33 @@ class MainActivity : Activity() {
         }
         root.addView(row)
 
-        root.addView(text("Ore de pornire", 14, muted).apply { setPadding(0, px(18), 0, px(8)) })
+        root.addView(text("Start times", 14, muted).apply { setPadding(0, px(18), 0, px(8)) })
         timesRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         root.addView(HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(timesRow)
         })
         root.addView(
-            text("Atinge o oră ca s-o schimbi, ține apăsat ca s-o ștergi.", 13, muted)
+            text("Tap a time to change it, press and hold to delete it.", 13, muted)
                 .apply { setPadding(0, px(8), 0, 0) },
         )
     }
 
     private fun buildTemperatures() {
-        sectionTitle("Temperaturi")
+        sectionTitle("Temperatures")
 
-        group("Încălzire", heat)
-        etHeatBelow = numberRow("Pornește când afară e sub", "°C")
-        etHeatTarget = numberRow("Temperatura în mașină", "°C")
+        group("Heating", heat)
+        etHeatBelow = numberRow("Start when it's colder than", "°C")
+        etHeatTarget = numberRow("Cabin temperature", "°C")
         val glassRow = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(px(14), px(8), 0, 0)
         }
-        glassRow.addView(text("Încălzire parbriz și lunetă", 15, ink), weightParams())
+        glassRow.addView(text("Heated windshield and rear window", 15, ink), weightParams())
         glassSwitch = Switch(this).apply {
             thumbTintList = checkedTint(heat, 0xFFBFC8D4.toInt())
             trackTintList = checkedTint(heat, line)
-            contentDescription = "Încălzire parbriz și lunetă"
+            contentDescription = "Heated windshield and rear window"
             setOnCheckedChangeListener { _, checked ->
                 if (loading) return@setOnCheckedChangeListener
                 prefs.glassHeat = checked
@@ -421,32 +421,32 @@ class MainActivity : Activity() {
         glassRow.addView(glassSwitch)
         root.addView(glassRow)
         root.addView(
-            text("Împiedică aburii și gheața pe geamuri. Se folosește doar la încălzire.", 13, muted)
+            text("Keeps the windows free of fog and ice. Used only when heating.", 13, muted)
                 .apply { setPadding(px(14), px(2), 0, 0) },
         )
 
-        group("Răcire", cool)
-        etCoolAbove = numberRow("Pornește când afară e peste", "°C")
-        etCoolTarget = numberRow("Temperatura în mașină", "°C")
+        group("Cooling", cool)
+        etCoolAbove = numberRow("Start when it's warmer than", "°C")
+        etCoolTarget = numberRow("Cabin temperature", "°C")
 
-        group("Durată", muted)
-        etDuration = numberRow("Cât timp merge climatizarea", "min", decimal = false)
+        group("Duration", muted)
+        etDuration = numberRow("How long the climate runs", "min", decimal = false)
 
-        group("Vremea pentru", muted)
-        etLat = numberRow("Latitudine", "")
-        etLon = numberRow("Longitudine", "")
+        group("Weather location", muted)
+        etLat = numberRow("Latitude", "")
+        etLon = numberRow("Longitude", "")
         etLat.layoutParams = LinearLayout.LayoutParams(px(96), -2)
         etLon.layoutParams = LinearLayout.LayoutParams(px(96), -2)
     }
 
     private fun buildEvents() {
-        sectionTitle("Evenimente din calendar")
+        sectionTitle("Calendar events")
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        row.addView(text("Pornește clima și pentru evenimente", 15, ink), weightParams())
+        row.addView(text("Start the climate for events too", 15, ink), weightParams())
         eventsSwitch = Switch(this).apply {
             thumbTintList = checkedTint(heat, 0xFFBFC8D4.toInt())
             trackTintList = checkedTint(heat, line)
-            contentDescription = "Evenimente din calendar"
+            contentDescription = "Calendar events"
             setOnCheckedChangeListener { _, checked ->
                 if (loading) return@setOnCheckedChangeListener
                 prefs.eventsEnabled = checked
@@ -460,16 +460,16 @@ class MainActivity : Activity() {
 
         root.addView(
             text(
-                "Scrie cuvântul de mai jos în titlul unui eveniment din Google Calendar, de exemplu " +
-                    "„Dentist mașina”. Clima pornește înainte de ora evenimentului, după aceleași temperaturi.",
+                "Put the word below in the title of a Google Calendar event. " +
+                    "The climate starts before the event time, using the same temperature rules.",
                 13, muted,
             ).apply {
                 setPadding(0, px(6), 0, 0)
                 setLineSpacing(0f, 1.15f)
             },
         )
-        etKeyword = field("Cuvânt în titlu", InputType.TYPE_CLASS_TEXT)
-        etLead = numberRow("Minute înainte de eveniment", "min", decimal = false, indent = false)
+        etKeyword = field("Word in the event title", InputType.TYPE_CLASS_TEXT)
+        etLead = numberRow("Minutes before the event", "min", decimal = false, indent = false)
 
         eventsList = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -481,9 +481,9 @@ class MainActivity : Activity() {
     private fun buildTest() {
         sectionTitle("Test")
         val row = LinearLayout(this)
-        val test = pill("Testează", filled = false) { runAction(ClimaRunner.Mode.TEST) }
-        val start = pill("Pornește clima", filled = true) { runAction(ClimaRunner.Mode.START_NOW) }
-        val stop = pill("Oprește", filled = false) { runAction(ClimaRunner.Mode.STOP) }
+        val test = pill("Test", filled = false) { runAction(ClimaRunner.Mode.TEST) }
+        val start = pill("Start climate", filled = true) { runAction(ClimaRunner.Mode.START_NOW) }
+        val stop = pill("Stop", filled = false) { runAction(ClimaRunner.Mode.STOP) }
         row.addView(test)
         row.addView(start, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = px(8) })
         row.addView(stop, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = px(8) })
@@ -493,7 +493,7 @@ class MainActivity : Activity() {
             addView(row)
         })
         root.addView(
-            text("Testează verifică vremea și contul Toyota, fără să pornească mașina.", 13, muted)
+            text("Test checks the weather and your Toyota account without starting the car.", 13, muted)
                 .apply { setPadding(0, px(8), 0, 0) },
         )
         tvResult = text("", 15, ink).apply {
@@ -509,7 +509,7 @@ class MainActivity : Activity() {
     // =====================================================================
 
     private fun buildLog() {
-        pageTitle("Jurnal")
+        pageTitle("Log")
         tvLog = text("", 12, ink).apply {
             typeface = Typeface.MONOSPACE
             setTextIsSelectable(true)
@@ -518,7 +518,7 @@ class MainActivity : Activity() {
         }
         root.addView(tvLog)
         root.addView(
-            pill("Golește jurnalul", filled = false) { prefs.clearLog(); refreshAll() },
+            pill("Clear log", filled = false) { prefs.clearLog(); refreshAll() },
             LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(16) },
         )
     }
@@ -734,7 +734,7 @@ class MainActivity : Activity() {
         refreshWeekdays()
         refreshTimes()
         refreshEvents()
-        tvLog.text = prefs.logText().ifBlank { "Nimic încă. Fiecare pornire și fiecare test apar aici." }
+        tvLog.text = prefs.logText().ifBlank { "Nothing yet. Every start and every test shows up here." }
     }
 
     private fun refreshHero() {
@@ -742,36 +742,36 @@ class MainActivity : Activity() {
         val now = System.currentTimeMillis()
         when {
             !prefs.enabled -> {
-                heroTime.text = "Oprit"
-                heroDate.text = "Pornește comutatorul ca să programezi clima."
+                heroTime.text = "Off"
+                heroDate.text = "Turn on the switch to schedule the climate."
             }
             next > now -> {
                 heroTime.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(next))
                 val label = prefs.nextLabel
-                heroDate.text = dayName(next) + if (label.isNotBlank()) ", pentru „$label”" else ""
+                heroDate.text = dayName(next) + if (label.isNotBlank()) ", for \"$label\"" else ""
             }
             prefs.parsedTimes().isEmpty() && !prefs.eventsEnabled -> {
                 heroTime.text = "—"
-                heroDate.text = "Adaugă o oră de pornire în Setări."
+                heroDate.text = "Add a start time in Settings."
             }
             else -> {
                 heroTime.text = "—"
-                heroDate.text = "Nicio pornire în următoarele două luni."
+                heroDate.text = "Nothing scheduled in the next two months."
             }
         }
-        heroRule.text = "Încălzește la ${fmt(prefs.heatTarget)}° când afară e sub ${fmt(prefs.heatBelow)}°, " +
-            "răcește la ${fmt(prefs.coolTarget)}° peste ${fmt(prefs.coolAbove)}°. Între ele nu pornește."
+        heroRule.text = "Heats to ${fmt(prefs.heatTarget)}° below ${fmt(prefs.heatBelow)}° outside, " +
+            "cools to ${fmt(prefs.coolTarget)}° above ${fmt(prefs.coolAbove)}°. In between, it stays off."
     }
 
     private fun dayName(t: Long): String {
         val target = Calendar.getInstance().apply { timeInMillis = t }
         val today = Calendar.getInstance()
         val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
-        val full = SimpleDateFormat("EEEE, d MMMM", ro).format(Date(t))
+        val full = SimpleDateFormat("EEEE, MMMM d", en).format(Date(t))
         return when (Prefs.dateKey(target)) {
-            Prefs.dateKey(today) -> "Azi"
-            Prefs.dateKey(tomorrow) -> "Mâine, ${full.substringBefore(',')}"
-            else -> full.replaceFirstChar { it.titlecase(ro) }
+            Prefs.dateKey(today) -> "Today"
+            Prefs.dateKey(tomorrow) -> "Tomorrow, ${full.substringBefore(',')}"
+            else -> full
         }
     }
 
@@ -799,7 +799,7 @@ class MainActivity : Activity() {
                 shape = GradientDrawable.OVAL
                 if (on) setColor(heat) else setStroke(px(1.5f), line)
             })
-            v.contentDescription = Prefs.DAY_LABELS[i] + if (on) ", pornit" else ", oprit"
+            v.contentDescription = Prefs.DAY_LABELS[i] + if (on) ", on" else ", off"
         }
     }
 
@@ -819,13 +819,13 @@ class MainActivity : Activity() {
                 typeface = condensed
                 setOnLongClickListener {
                     setTimes(times.filterIndexed { i, _ -> i != idx })
-                    Toast.makeText(this@MainActivity, "Ora $label a fost ștearsă", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Deleted $label", Toast.LENGTH_SHORT).show()
                     true
                 }
             }
             timesRow.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = px(8) })
         }
-        val add = pill("+ Adaugă oră", filled = false) {
+        val add = pill("+ Add time", filled = false) {
             TimePickerDialog(this, { _, nh, nm -> setTimes(times + (nh to nm)) }, 7, 0, true).show()
         }.apply { setTextColor(muted) }
         timesRow.addView(add)
@@ -841,30 +841,30 @@ class MainActivity : Activity() {
         eventsList.visibility = View.VISIBLE
         if (!CalendarEvents.hasPermission(this)) {
             val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-            row.addView(text("Aplicația are nevoie de acces la calendar.", 14, ink), weightParams())
-            row.addView(pill("Permite", filled = true) { requestCalendar() })
+            row.addView(text("The app needs access to your calendar.", 14, ink), weightParams())
+            row.addView(pill("Allow", filled = true) { requestCalendar() })
             eventsList.addView(row)
             return
         }
         val now = System.currentTimeMillis()
         val list = CalendarEvents.upcoming(this, prefs, now).filter { it.time > now }.take(5)
-        eventsList.addView(text("Următoarele porniri din calendar", 14, muted).apply { setPadding(0, 0, 0, px(4)) })
+        eventsList.addView(text("Next starts from your calendar", 14, muted).apply { setPadding(0, 0, 0, px(4)) })
         if (list.isEmpty()) {
             val kw = prefs.eventKeyword.ifBlank { "…" }
-            eventsList.addView(text("Niciun eveniment cu „$kw” în titlu în următoarele două luni.", 14, ink))
+            eventsList.addView(text("No events with \"$kw\" in the title in the next two months.", 14, ink))
             return
         }
-        val fmt = SimpleDateFormat("EEE d MMM, HH:mm", ro)
+        val fmt = SimpleDateFormat("EEE, MMM d, HH:mm", en)
         for (tr in list) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(0, px(8), 0, px(4))
             }
-            row.addView(text(fmt.format(Date(tr.time)).replaceFirstChar { it.titlecase(ro) }, 17, ink).apply {
+            row.addView(text(fmt.format(Date(tr.time)), 17, ink).apply {
                 typeface = condensed
             })
-            val eventTime = SimpleDateFormat("HH:mm", ro).format(Date(tr.eventStart))
-            row.addView(text("${tr.title}, la $eventTime", 14, muted))
+            val eventTime = SimpleDateFormat("HH:mm", en).format(Date(tr.eventStart))
+            row.addView(text("${tr.title}, at $eventTime", 14, muted))
             eventsList.addView(row)
         }
     }
@@ -874,12 +874,12 @@ class MainActivity : Activity() {
         val exact = Scheduler.canScheduleExact(this)
         val battery = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
         if (!exact) {
-            noticeRow("Android poate întârzia pornirea fără permisiunea pentru alarme exacte.", "Permite") {
+            noticeRow("Android may delay the start without the exact alarms permission.", "Allow") {
                 openExactAlarmSettings()
             }
         }
         if (!battery) {
-            noticeRow("Optimizarea bateriei poate opri pornirea de dimineață.", "Dezactivează") {
+            noticeRow("Battery optimization can block the morning start.", "Turn off") {
                 openBatterySettings()
             }
         }
@@ -907,9 +907,9 @@ class MainActivity : Activity() {
         actionButtons.forEach { it.isEnabled = false; it.alpha = 0.4f }
         tvResult.visibility = View.VISIBLE
         tvResult.text = when (mode) {
-            ClimaRunner.Mode.TEST -> "Verific vremea și contul…"
-            ClimaRunner.Mode.STOP -> "Opresc clima…"
-            else -> "Pornesc clima…"
+            ClimaRunner.Mode.TEST -> "Checking the weather and your account…"
+            ClimaRunner.Mode.STOP -> "Stopping the climate…"
+            else -> "Starting the climate…"
         }
         Thread {
             val msg = ClimaRunner.run(applicationContext, mode)
