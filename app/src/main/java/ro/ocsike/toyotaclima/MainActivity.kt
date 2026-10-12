@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.net.Uri
@@ -23,7 +24,9 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
@@ -68,8 +71,9 @@ class MainActivity : Activity() {
 
     // Navigare
     private val pages = mutableListOf<View>()
-    private val tabs = mutableListOf<Pair<TextView, View>>()
+    private val pageNames = listOf("Acasă", "Setări", "Jurnal")
     private var currentTab = TAB_HOME
+    private val surface by lazy { getColor(R.color.surface) }
 
     // Acasă
     private lateinit var heroSwitch: Switch
@@ -153,24 +157,86 @@ class MainActivity : Activity() {
     }
 
     // =====================================================================
-    // Structura: trei pagini + bara de jos
+    // Structura: antet cu meniu și logo + trei pagini
     // =====================================================================
 
     private fun buildUi() {
         val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        frame.addView(buildTopBar(), LinearLayout.LayoutParams(-1, px(60)))
+
         val container = FrameLayout(this)
         frame.addView(container, LinearLayout.LayoutParams(-1, 0, 1f))
-
         container.addView(page { buildHome() })
         container.addView(page { buildSettings() })
         container.addView(page { buildLog() })
 
-        frame.addView(View(this).apply { setBackgroundColor(line) }, LinearLayout.LayoutParams(-1, px(1)))
-        val bar = LinearLayout(this).apply { setBackgroundColor(bg) }
-        listOf("Acasă", "Setări", "Jurnal").forEachIndexed { i, label -> bar.addView(tab(i, label), weightParams()) }
-        frame.addView(bar, LinearLayout.LayoutParams(-1, px(60)))
-
         setContentView(frame)
+    }
+
+    /** Butonul de meniu (trei linii) și, în dreapta lui, logo-ul ToyClimate. */
+    private fun buildTopBar(): View {
+        val bar = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(px(4), 0, px(16), 0)
+            setBackgroundColor(bg)
+        }
+        val menu = ImageView(this).apply {
+            setImageResource(R.drawable.ic_menu)
+            imageTintList = ColorStateList.valueOf(ink)
+            scaleType = ImageView.ScaleType.CENTER
+            contentDescription = "Meniu"
+            isClickable = true
+            isFocusable = true
+            background = RippleDrawable(ColorStateList.valueOf(0x33808080), null, null)
+            setOnClickListener { showMenu(this) }
+        }
+        bar.addView(menu, LinearLayout.LayoutParams(px(48), px(48)))
+
+        bar.addView(ImageView(this).apply {
+            setImageResource(R.drawable.logo_mark)
+            contentDescription = null
+        }, LinearLayout.LayoutParams(px(30), px(30)).apply { leftMargin = px(4) })
+        bar.addView(text("ToyClimate", 22, ink).apply {
+            typeface = condensed
+            letterSpacing = 0.01f
+            setPadding(px(10), 0, 0, 0)
+        })
+        return bar
+    }
+
+    /** Lista derulantă cu paginile; pagina curentă e marcată cu bara chihlimbarie. */
+    private fun showMenu(anchor: View) {
+        val list = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, px(8), 0, px(8))
+        }
+        val popup = PopupWindow(list, px(220), ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
+            setBackgroundDrawable(rounded(surface, 16))
+            elevation = 10 * dp
+            isOutsideTouchable = true
+        }
+        pageNames.forEachIndexed { i, name ->
+            val active = i == currentTab
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+                background = RippleDrawable(ColorStateList.valueOf(0x22808080), null, ColorDrawable(0xFFFFFFFF.toInt()))
+                setOnClickListener {
+                    popup.dismiss()
+                    showTab(i)
+                }
+            }
+            row.addView(View(this).apply {
+                background = rounded(if (active) heat else 0, 2)
+            }, LinearLayout.LayoutParams(px(4), px(22)).apply { leftMargin = px(12) })
+            row.addView(text(name, 17, if (active) ink else muted).apply {
+                typeface = if (active) medium else Typeface.DEFAULT
+                setPadding(px(14), px(14), px(16), px(14))
+            }, weightParams())
+            list.addView(row)
+        }
+        popup.showAsDropDown(anchor, px(8), px(2))
     }
 
     /** O pagină derulabilă; [build] umple containerul [root]. */
@@ -186,29 +252,11 @@ class MainActivity : Activity() {
         return scroll
     }
 
-    private fun tab(index: Int, label: String): View {
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            isClickable = true
-            isFocusable = true
-            background = RippleDrawable(ColorStateList.valueOf(0x22808080), null, null)
-            setOnClickListener { showTab(index) }
-        }
-        val indicator = View(this).apply { background = rounded(heat, 2) }
-        box.addView(indicator, LinearLayout.LayoutParams(px(28), px(3)).apply { bottomMargin = px(7) })
-        val tv = text(label, 15, muted).apply { typeface = medium }
-        box.addView(tv)
-        tabs += tv to indicator
-        return box
-    }
-
     private fun showTab(index: Int) {
         currentTab = index
-        pages.forEachIndexed { i, p -> p.visibility = if (i == index) View.VISIBLE else View.GONE }
-        tabs.forEachIndexed { i, (tv, indicator) ->
-            tv.setTextColor(if (i == index) ink else muted)
-            indicator.visibility = if (i == index) View.VISIBLE else View.INVISIBLE
+        pages.forEachIndexed { i, p ->
+            p.visibility = if (i == index) View.VISIBLE else View.GONE
+            if (i == index) (p as ScrollView).scrollTo(0, 0)
         }
         currentFocus?.clearFocus()
         refreshAll()

@@ -28,7 +28,7 @@ object Notify {
         )
         val notification = Notification.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Toyota Clima")
+            .setContentTitle("ToyClimate")
             .setContentText(message)
             .setStyle(Notification.BigTextStyle().bigText(message))
             .setContentIntent(open)

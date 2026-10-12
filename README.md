@@ -1,4 +1,4 @@
-# Toyota Clima
+# ToyClimate
 
 Aplicație Android care pornește climatizarea Toyota la ore programate, în funcție de vremea de afară:
 
