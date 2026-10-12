@@ -88,6 +88,26 @@ class Prefs(context: Context) {
         get() = sp.getLong("next_run", 0)
         set(v) = sp.edit().putLong("next_run", v).apply()
 
+    /** Titlul evenimentului din calendar pentru următoarea rulare; gol = program săptămânal. */
+    var nextLabel: String
+        get() = str("next_label")
+        set(v) = putStr("next_label", v)
+
+    // Evenimente din Google Calendar
+    var eventsEnabled: Boolean
+        get() = sp.getBoolean("events_enabled", false)
+        set(v) = sp.edit().putBoolean("events_enabled", v).apply()
+
+    /** Cuvântul care trebuie să apară în titlul evenimentului. */
+    var eventKeyword: String
+        get() = str("event_keyword", "mașina")
+        set(v) = putStr("event_keyword", v)
+
+    /** Cu câte minute înainte de ora evenimentului pornește clima. */
+    var eventLeadMinutes: Int
+        get() = sp.getInt("event_lead", 5)
+        set(v) = sp.edit().putInt("event_lead", v).apply()
+
     // Excepții pe date concrete, format "yyyy-MM-dd": zile pornite / oprite manual din calendar.
     private fun dateSet(key: String): Set<String> =
         str(key).split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()

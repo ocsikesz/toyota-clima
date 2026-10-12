@@ -21,6 +21,13 @@ class MonthCalendarView(context: Context, private val prefs: Prefs) : View(conte
 
     var onDayToggled: (() -> Unit)? = null
 
+    /** Zile ("yyyy-MM-dd") cu evenimente din calendar care pornesc clima: desenate cu contur. */
+    var eventDays: Set<String> = emptySet()
+        set(v) {
+            field = v
+            invalidate()
+        }
+
     private val month: Calendar = Calendar.getInstance().apply {
         set(Calendar.DAY_OF_MONTH, 1)
         set(Calendar.HOUR_OF_DAY, 12)
@@ -55,6 +62,11 @@ class MonthCalendarView(context: Context, private val prefs: Prefs) : View(conte
         style = Paint.Style.STROKE
         strokeWidth = 1.5f * dp
         color = ink
+    }
+    private val eventPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2.2f * dp
+        color = heat
     }
 
     // ---------- Navigare ----------
@@ -127,6 +139,8 @@ class MonthCalendarView(context: Context, private val prefs: Prefs) : View(conte
                 discPaint.color = heat
                 discPaint.alpha = alpha
                 canvas.drawCircle(cx, cy, radius, discPaint)
+            } else if (!past && key in eventDays) {
+                canvas.drawCircle(cx, cy, radius - 1.1f * dp, eventPaint)
             }
             if (key == todayKey) {
                 canvas.drawCircle(cx, cy, radius + 3 * dp, ringPaint)

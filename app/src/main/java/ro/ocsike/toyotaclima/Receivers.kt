@@ -12,6 +12,8 @@ class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val appContext = context.applicationContext
+        // Titlul evenimentului care a declanșat rularea (gol = program săptămânal).
+        val label = Prefs(appContext).nextLabel
         // Programează imediat următoarea rulare, ca un eșec să nu oprească lanțul.
         Scheduler.schedule(appContext)
 
@@ -22,7 +24,7 @@ class AlarmReceiver : BroadcastReceiver() {
         Thread {
             try {
                 val msg = ClimaRunner.run(appContext, ClimaRunner.Mode.SCHEDULED)
-                Notify.show(appContext, msg)
+                Notify.show(appContext, if (label.isNotBlank()) "$label: $msg" else msg)
             } finally {
                 if (wakeLock.isHeld) wakeLock.release()
                 pending.finish()

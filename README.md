@@ -12,19 +12,28 @@ Implicit: luni–vineri la 06:20 și 14:30. Orele, zilele, pragurile și locați
 
 1. Descarcă `toyota-clima.apk` din [Releases → latest](../../releases/tag/latest).
 2. Deschide-l pe telefon și permite instalarea din surse necunoscute.
-3. În **Cont MyToyota și locație** completează emailul și parola. Totul se salvează automat.
-4. Dacă apare avertismentul portocaliu, apasă **Permite** și **Dezactivează** (alarme exacte, optimizare baterie).
-5. Apasă **Testează**: verifică vremea și contul Toyota, fără să pornească mașina.
-6. Pornește comutatorul din panoul de sus.
+3. În **Setări → Cont Toyota** completează emailul și parola. Totul se salvează automat.
+4. Dacă pe **Acasă** apare avertismentul portocaliu, apasă **Permite** și **Dezactivează** (alarme exacte, optimizare baterie).
+5. În **Setări → Test** apasă **Testează**: verifică vremea și contul Toyota, fără să pornească mașina.
+6. Pornește comutatorul din panoul albastru de pe **Acasă**.
 
-## Calendarul
+## Paginile
 
-Zilele colorate sunt cele în care pornește clima. Programul de bază vine din zilele săptămânii
-(implicit luni–vineri). O atingere pe o zi din calendar o pornește sau o oprește doar pe ea,
-de exemplu un concediu sau o sâmbătă lucrătoare; punctul marchează aceste excepții.
+- **Acasă**: următoarea pornire și calendarul lunii. Discurile pline sunt zilele din program, cele cu contur au un
+  eveniment din calendar. O atingere pe o zi o pornește sau o oprește doar pe ea; punctul marchează excepțiile.
+- **Setări**: contul Toyota, programul săptămânal și orele, temperaturile, evenimentele din calendar și testul.
+- **Jurnal**: fiecare pornire și fiecare test.
 
-Orele de pornire se schimbă atingându-le; ținute apăsat se șterg.
-Fiecare pornire programată trimite o notificare cu rezultatul și apare în jurnal.
+## Evenimente din Google Calendar
+
+Activează **Setări → Evenimente din calendar** și permite accesul la calendar. Orice eveniment care are în titlu
+cuvântul ales (implicit „mașina”, fără să conteze diacriticele sau literele mari) pornește clima cu 5 minute
+înainte de ora lui, după aceleași reguli de temperatură. Evenimentele de o zi întreagă sunt ignorate, iar
+cele aflate la mai puțin de 15 minute de o pornire din program nu pornesc clima a doua oară. Aplicația
+reverifică calendarul la fiecare jumătate de oră, deci un eveniment adăugat de pe alt dispozitiv e preluat după
+ce se sincronizează pe telefon.
+
+Waze nu permite altor aplicații să-i citească drumurile planificate, dar folosește și el Google Calendar.
 
 ## Cerințe și limitări
 

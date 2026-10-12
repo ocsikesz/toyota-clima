@@ -35,7 +35,17 @@ import java.util.Locale
 
 class MainActivity : Activity() {
 
+    companion object {
+        private const val REQ_NOTIFICATIONS = 1
+        private const val REQ_CALENDAR = 2
+        private const val TAB_HOME = 0
+        private const val TAB_SETTINGS = 1
+        private const val TAB_LOG = 2
+    }
+
     private lateinit var prefs: Prefs
+
+    /** Containerul în care se construiește pagina curentă. */
     private lateinit var root: LinearLayout
 
     // Culori (se schimbă automat zi/noapte din res/values-night)
@@ -44,47 +54,58 @@ class MainActivity : Activity() {
     private val line by lazy { getColor(R.color.line) }
     private val heat by lazy { getColor(R.color.heat) }
     private val cool by lazy { getColor(R.color.cool) }
+    private val bg by lazy { getColor(R.color.bg) }
     private val heroBg by lazy { getColor(R.color.hero_bg) }
     private val heroText by lazy { getColor(R.color.hero_text) }
     private val onHeat by lazy { getColor(R.color.on_heat) }
 
     private val condensed: Typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
     private val medium: Typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    private val ro = Locale("ro")
 
     private val dp: Float by lazy { resources.displayMetrics.density }
     private fun px(v: Number) = (v.toFloat() * dp).toInt()
 
-    // Panoul de sus
+    // Navigare
+    private val pages = mutableListOf<View>()
+    private val tabs = mutableListOf<Pair<TextView, View>>()
+    private var currentTab = TAB_HOME
+
+    // Acasă
     private lateinit var heroSwitch: Switch
     private lateinit var heroTime: TextView
     private lateinit var heroDate: TextView
     private lateinit var heroRule: TextView
-    private lateinit var heroLast: TextView
-
-    // Calendar și program
+    private lateinit var notice: LinearLayout
     private lateinit var calendar: MonthCalendarView
     private lateinit var calTitle: TextView
     private lateinit var calPrev: TextView
     private lateinit var calNext: TextView
+
+    // Setări
     private val weekdayViews = mutableListOf<TextView>()
     private lateinit var timesRow: LinearLayout
-    private lateinit var notice: LinearLayout
-
-    // Câmpuri
+    private lateinit var etUser: EditText
+    private lateinit var etPass: EditText
+    private lateinit var etVin: EditText
     private lateinit var etHeatBelow: EditText
     private lateinit var etHeatTarget: EditText
     private lateinit var etDefrost: EditText
     private lateinit var etCoolAbove: EditText
     private lateinit var etCoolTarget: EditText
     private lateinit var etDuration: EditText
-    private lateinit var etUser: EditText
-    private lateinit var etPass: EditText
-    private lateinit var etVin: EditText
     private lateinit var etLat: EditText
     private lateinit var etLon: EditText
+    private lateinit var eventsSwitch: Switch
+    private lateinit var etKeyword: EditText
+    private lateinit var etLead: EditText
+    private lateinit var eventsList: LinearLayout
+    private lateinit var tvResult: TextView
+    private val actionButtons = mutableListOf<TextView>()
+
+    // Jurnal
     private lateinit var tvLog: TextView
 
-    private val actionButtons = mutableListOf<TextView>()
     private var loading = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,10 +113,11 @@ class MainActivity : Activity() {
         prefs = Prefs(this)
         buildUi()
         loadValues()
+        showTab(savedInstanceState?.getInt("tab", TAB_HOME) ?: TAB_HOME)
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIFICATIONS)
         }
     }
 
@@ -105,36 +127,103 @@ class MainActivity : Activity() {
         refreshAll()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt("tab", currentTab)
+    }
+
+    @Deprecated("Navigarea înapoi duce întâi la Acasă")
+    override fun onBackPressed() {
+        if (currentTab != TAB_HOME) showTab(TAB_HOME) else super.onBackPressed()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_CALENDAR) return
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            prefs.eventsEnabled = false
+            loading = true
+            eventsSwitch.isChecked = false
+            loading = false
+            Toast.makeText(this, "Fără acces la calendar nu pot citi evenimentele.", Toast.LENGTH_LONG).show()
+        }
+        reschedule()
+        refreshAll()
+    }
+
     // =====================================================================
-    // Construcția ecranului
+    // Structura: trei pagini + bara de jos
     // =====================================================================
 
     private fun buildUi() {
+        val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val container = FrameLayout(this)
+        frame.addView(container, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        container.addView(page { buildHome() })
+        container.addView(page { buildSettings() })
+        container.addView(page { buildLog() })
+
+        frame.addView(View(this).apply { setBackgroundColor(line) }, LinearLayout.LayoutParams(-1, px(1)))
+        val bar = LinearLayout(this).apply { setBackgroundColor(bg) }
+        listOf("Acasă", "Setări", "Jurnal").forEachIndexed { i, label -> bar.addView(tab(i, label), weightParams()) }
+        frame.addView(bar, LinearLayout.LayoutParams(-1, px(60)))
+
+        setContentView(frame)
+    }
+
+    /** O pagină derulabilă; [build] umple containerul [root]. */
+    private fun page(build: () -> Unit): View {
         val scroll = ScrollView(this).apply { isFillViewport = true }
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(16), px(12), px(16), px(40))
+            setPadding(px(16), px(12), px(16), px(32))
         }
         scroll.addView(root)
-        setContentView(scroll)
-
-        buildHero()
-        buildNotice()
-        buildCalendar()
-        buildSchedule()
-        buildTemperatures()
-        buildActions()
-        buildAccount()
-        buildLog()
+        build()
+        pages += scroll
+        return scroll
     }
 
-    private fun buildHero() {
+    private fun tab(index: Int, label: String): View {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            background = RippleDrawable(ColorStateList.valueOf(0x22808080), null, null)
+            setOnClickListener { showTab(index) }
+        }
+        val indicator = View(this).apply { background = rounded(heat, 2) }
+        box.addView(indicator, LinearLayout.LayoutParams(px(28), px(3)).apply { bottomMargin = px(7) })
+        val tv = text(label, 15, muted).apply { typeface = medium }
+        box.addView(tv)
+        tabs += tv to indicator
+        return box
+    }
+
+    private fun showTab(index: Int) {
+        currentTab = index
+        pages.forEachIndexed { i, p -> p.visibility = if (i == index) View.VISIBLE else View.GONE }
+        tabs.forEachIndexed { i, (tv, indicator) ->
+            tv.setTextColor(if (i == index) ink else muted)
+            indicator.visibility = if (i == index) View.VISIBLE else View.INVISIBLE
+        }
+        currentFocus?.clearFocus()
+        refreshAll()
+    }
+
+    // =====================================================================
+    // Pagina 1: Acasă
+    // =====================================================================
+
+    private fun buildHome() {
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(px(20), px(16), px(20), px(20))
+            setPadding(px(20), px(16), px(20), px(22))
             background = rounded(heroBg, 22)
         }
-
         val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         top.addView(text("Următoarea pornire", 14, heroText).apply { alpha = 0.75f }, weightParams())
         heroSwitch = Switch(this).apply {
@@ -164,17 +253,9 @@ class MainActivity : Activity() {
             setLineSpacing(0f, 1.15f)
         }
         hero.addView(heroRule)
-        heroLast = text("", 13, heroText).apply {
-            alpha = 0.6f
-            setPadding(0, px(10), 0, 0)
-        }
-        hero.addView(heroLast)
-
         root.addView(hero)
-    }
 
-    /** Avertismente de permisiuni: apar doar când lipsește ceva. */
-    private fun buildNotice() {
+        // Avertismente de permisiuni: apar doar când lipsește ceva.
         notice = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(px(16), px(12), px(16), px(12))
@@ -184,9 +265,7 @@ class MainActivity : Activity() {
             }
         }
         root.addView(notice, LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(14) })
-    }
 
-    private fun buildCalendar() {
         val header = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, px(28), 0, px(8))
@@ -205,14 +284,32 @@ class MainActivity : Activity() {
 
         root.addView(
             text(
-                "Zilele colorate pornesc clima. Atinge o zi ca s-o pornești sau s-o oprești doar pe ea; " +
-                    "punctul arată că ai schimbat-o față de programul săptămânal.",
+                "Discurile pline sunt zilele din program, cele cu contur au un eveniment din calendar. " +
+                    "Atinge o zi ca s-o pornești sau s-o oprești doar pe ea; punctul arată ce ai schimbat.",
                 13, muted,
             ).apply {
-                setPadding(0, px(8), 0, 0)
+                setPadding(0, px(10), 0, 0)
                 setLineSpacing(0f, 1.15f)
             },
         )
+    }
+
+    // =====================================================================
+    // Pagina 2: Setări
+    // =====================================================================
+
+    private fun buildSettings() {
+        pageTitle("Setări")
+
+        sectionTitle("Cont Toyota", first = true)
+        etUser = field("Email", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
+        etPass = field("Parolă", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        etVin = field("VIN (gol = prima mașină din cont)", InputType.TYPE_CLASS_TEXT)
+
+        buildSchedule()
+        buildTemperatures()
+        buildEvents()
+        buildTest()
     }
 
     private fun buildSchedule() {
@@ -243,11 +340,10 @@ class MainActivity : Activity() {
 
         root.addView(text("Ore de pornire", 14, muted).apply { setPadding(0, px(18), 0, px(8)) })
         timesRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val hs = HorizontalScrollView(this).apply {
+        root.addView(HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(timesRow)
-        }
-        root.addView(hs)
+        })
         root.addView(
             text("Atinge o oră ca s-o schimbi, ține apăsat ca s-o ștergi.", 13, muted)
                 .apply { setPadding(0, px(8), 0, 0) },
@@ -268,10 +364,55 @@ class MainActivity : Activity() {
 
         group("Durată", muted)
         etDuration = numberRow("Cât timp merge climatizarea", "min", decimal = false)
+
+        group("Vremea pentru", muted)
+        etLat = numberRow("Latitudine", "")
+        etLon = numberRow("Longitudine", "")
+        etLat.layoutParams = LinearLayout.LayoutParams(px(96), -2)
+        etLon.layoutParams = LinearLayout.LayoutParams(px(96), -2)
     }
 
-    private fun buildActions() {
-        sectionTitle("Acum")
+    private fun buildEvents() {
+        sectionTitle("Evenimente din calendar")
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        row.addView(text("Pornește clima și pentru evenimente", 15, ink), weightParams())
+        eventsSwitch = Switch(this).apply {
+            thumbTintList = checkedTint(heat, 0xFFBFC8D4.toInt())
+            trackTintList = checkedTint(heat, line)
+            contentDescription = "Evenimente din calendar"
+            setOnCheckedChangeListener { _, checked ->
+                if (loading) return@setOnCheckedChangeListener
+                prefs.eventsEnabled = checked
+                if (checked && !CalendarEvents.hasPermission(this@MainActivity)) requestCalendar()
+                reschedule()
+                refreshEvents()
+            }
+        }
+        row.addView(eventsSwitch)
+        root.addView(row)
+
+        root.addView(
+            text(
+                "Scrie cuvântul de mai jos în titlul unui eveniment din Google Calendar, de exemplu " +
+                    "„Dentist mașina”. Clima pornește înainte de ora evenimentului, după aceleași temperaturi.",
+                13, muted,
+            ).apply {
+                setPadding(0, px(6), 0, 0)
+                setLineSpacing(0f, 1.15f)
+            },
+        )
+        etKeyword = field("Cuvânt în titlu", InputType.TYPE_CLASS_TEXT)
+        etLead = numberRow("Minute înainte de eveniment", "min", decimal = false, indent = false)
+
+        eventsList = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, px(10), 0, 0)
+        }
+        root.addView(eventsList)
+    }
+
+    private fun buildTest() {
+        sectionTitle("Test")
         val row = LinearLayout(this)
         val test = pill("Testează", filled = false) { runAction(ClimaRunner.Mode.TEST) }
         val start = pill("Pornește clima", filled = true) { runAction(ClimaRunner.Mode.START_NOW) }
@@ -288,29 +429,30 @@ class MainActivity : Activity() {
             text("Testează verifică vremea și contul Toyota, fără să pornească mașina.", 13, muted)
                 .apply { setPadding(0, px(8), 0, 0) },
         )
+        tvResult = text("", 15, ink).apply {
+            setPadding(0, px(12), 0, 0)
+            setLineSpacing(0f, 1.15f)
+            visibility = View.GONE
+        }
+        root.addView(tvResult)
     }
 
-    private fun buildAccount() {
-        val body = collapsible("Cont MyToyota și locație", expanded = prefs.username.isBlank())
-        etUser = field(body, "Email", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
-        etPass = field(body, "Parolă", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
-        etVin = field(body, "VIN (gol = prima mașină din cont)", InputType.TYPE_CLASS_TEXT)
-        val num = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
-        etLat = field(body, "Latitudine pentru vreme", num)
-        etLon = field(body, "Longitudine pentru vreme", num)
-    }
+    // =====================================================================
+    // Pagina 3: Jurnal
+    // =====================================================================
 
     private fun buildLog() {
-        val body = collapsible("Jurnal", expanded = false)
+        pageTitle("Jurnal")
         tvLog = text("", 12, ink).apply {
             typeface = Typeface.MONOSPACE
             setTextIsSelectable(true)
-            setLineSpacing(0f, 1.2f)
+            setLineSpacing(0f, 1.25f)
+            setPadding(0, px(8), 0, 0)
         }
-        body.addView(tvLog)
-        body.addView(
+        root.addView(tvLog)
+        root.addView(
             pill("Golește jurnalul", filled = false) { prefs.clearLog(); refreshAll() },
-            LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(12) },
+            LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(16) },
         )
     }
 
@@ -339,10 +481,17 @@ class MainActivity : Activity() {
     private fun ripple(content: GradientDrawable) =
         RippleDrawable(ColorStateList.valueOf(0x33808080), content, null)
 
-    private fun sectionTitle(s: String) {
+    private fun pageTitle(s: String) {
+        root.addView(text(s, 32, ink).apply {
+            typeface = medium
+            setPadding(0, px(8), 0, 0)
+        })
+    }
+
+    private fun sectionTitle(s: String, first: Boolean = false) {
         root.addView(text(s, 22, ink).apply {
             typeface = medium
-            setPadding(0, px(32), 0, px(10))
+            setPadding(0, px(if (first) 20 else 36), 0, px(8))
         })
     }
 
@@ -360,10 +509,10 @@ class MainActivity : Activity() {
         root.addView(row)
     }
 
-    private fun numberRow(label: String, unit: String, decimal: Boolean = true): EditText {
+    private fun numberRow(label: String, unit: String, decimal: Boolean = true, indent: Boolean = true): EditText {
         val row = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(px(14), 0, 0, 0)
+            setPadding(if (indent) px(14) else 0, 0, 0, 0)
         }
         row.addView(text(label, 15, ink), weightParams())
         val et = EditText(this).apply {
@@ -384,8 +533,8 @@ class MainActivity : Activity() {
         return et
     }
 
-    private fun field(parent: LinearLayout, hint: String, type: Int): EditText {
-        parent.addView(text(hint, 13, muted).apply { setPadding(0, px(10), 0, 0) })
+    private fun field(hint: String, type: Int): EditText {
+        root.addView(text(hint, 13, muted).apply { setPadding(0, px(10), 0, 0) })
         val et = EditText(this).apply {
             inputType = type
             isSingleLine = true
@@ -395,7 +544,7 @@ class MainActivity : Activity() {
             contentDescription = hint
             addTextChangedListener(watcher())
         }
-        parent.addView(et)
+        root.addView(et)
         return et
     }
 
@@ -428,31 +577,6 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
-    /** Secțiune pliabilă; întoarce containerul în care se pun câmpurile. */
-    private fun collapsible(title: String, expanded: Boolean): LinearLayout {
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = if (expanded) View.VISIBLE else View.GONE
-        }
-        val header = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, px(32), 0, px(6))
-            isClickable = true
-            isFocusable = true
-        }
-        val chevron = text(if (expanded) "▾" else "▸", 18, muted)
-        header.addView(text(title, 22, ink).apply { typeface = medium }, weightParams())
-        header.addView(chevron)
-        header.setOnClickListener {
-            val show = body.visibility != View.VISIBLE
-            body.visibility = if (show) View.VISIBLE else View.GONE
-            chevron.text = if (show) "▾" else "▸"
-        }
-        root.addView(header)
-        root.addView(body)
-        return body
-    }
-
     private fun watcher() = object : TextWatcher {
         override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
         override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -471,17 +595,20 @@ class MainActivity : Activity() {
     private fun loadValues() {
         loading = true
         heroSwitch.isChecked = prefs.enabled
+        etUser.setText(prefs.username)
+        etPass.setText(prefs.password)
+        etVin.setText(prefs.vin)
         etHeatBelow.setText(fmt(prefs.heatBelow))
         etHeatTarget.setText(fmt(prefs.heatTarget))
         etDefrost.setText(fmt(prefs.defrostBelow))
         etCoolAbove.setText(fmt(prefs.coolAbove))
         etCoolTarget.setText(fmt(prefs.coolTarget))
         etDuration.setText(prefs.duration.toString())
-        etUser.setText(prefs.username)
-        etPass.setText(prefs.password)
-        etVin.setText(prefs.vin)
         etLat.setText(prefs.latitude.toString())
         etLon.setText(prefs.longitude.toString())
+        eventsSwitch.isChecked = prefs.eventsEnabled
+        etKeyword.setText(prefs.eventKeyword)
+        etLead.setText(prefs.eventLeadMinutes.toString())
         loading = false
     }
 
@@ -504,12 +631,16 @@ class MainActivity : Activity() {
         prefs.duration = etDuration.text.toString().trim().toIntOrNull()?.coerceIn(1, 30) ?: prefs.duration
         prefs.latitude = etLat.dbl(prefs.latitude)
         prefs.longitude = etLon.dbl(prefs.longitude)
-        refreshHero()
+        prefs.eventKeyword = etKeyword.text.toString().trim()
+        prefs.eventLeadMinutes = etLead.text.toString().trim().toIntOrNull()?.coerceIn(0, 120) ?: prefs.eventLeadMinutes
+        reschedule()
+        refreshEvents()
     }
 
     private fun reschedule() {
         Scheduler.schedule(this)
         refreshHero()
+        refreshEventDays()
         calendar.invalidate()
     }
 
@@ -520,6 +651,10 @@ class MainActivity : Activity() {
         reschedule()
     }
 
+    private fun requestCalendar() {
+        requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), REQ_CALENDAR)
+    }
+
     // =====================================================================
     // Afișare
     // =====================================================================
@@ -528,9 +663,11 @@ class MainActivity : Activity() {
         refreshHero()
         refreshNotice()
         refreshCalendarHeader()
+        refreshEventDays()
         calendar.invalidate()
         refreshWeekdays()
         refreshTimes()
+        refreshEvents()
         tvLog.text = prefs.logText().ifBlank { "Nimic încă. Fiecare pornire și fiecare test apar aici." }
     }
 
@@ -544,33 +681,31 @@ class MainActivity : Activity() {
             }
             next > now -> {
                 heroTime.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(next))
-                heroDate.text = dayName(next)
+                val label = prefs.nextLabel
+                heroDate.text = dayName(next) + if (label.isNotBlank()) ", pentru „$label”" else ""
             }
-            prefs.parsedTimes().isEmpty() -> {
+            prefs.parsedTimes().isEmpty() && !prefs.eventsEnabled -> {
                 heroTime.text = "—"
-                heroDate.text = "Adaugă cel puțin o oră de pornire."
+                heroDate.text = "Adaugă o oră de pornire în Setări."
             }
             else -> {
                 heroTime.text = "—"
-                heroDate.text = "Nicio zi programată în următoarele două luni."
+                heroDate.text = "Nicio pornire în următoarele două luni."
             }
         }
         heroRule.text = "Încălzește la ${fmt(prefs.heatTarget)}° când afară e sub ${fmt(prefs.heatBelow)}°, " +
             "răcește la ${fmt(prefs.coolTarget)}° peste ${fmt(prefs.coolAbove)}°. Între ele nu pornește."
-        val last = prefs.logText().lineSequence().firstOrNull { it.isNotBlank() }
-        heroLast.text = if (last != null) "Ultima: $last" else ""
-        heroLast.visibility = if (last != null) View.VISIBLE else View.GONE
     }
 
     private fun dayName(t: Long): String {
         val target = Calendar.getInstance().apply { timeInMillis = t }
         val today = Calendar.getInstance()
         val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
-        val full = SimpleDateFormat("EEEE, d MMMM", Locale("ro")).format(Date(t))
+        val full = SimpleDateFormat("EEEE, d MMMM", ro).format(Date(t))
         return when (Prefs.dateKey(target)) {
             Prefs.dateKey(today) -> "Azi"
             Prefs.dateKey(tomorrow) -> "Mâine, ${full.substringBefore(',')}"
-            else -> full.replaceFirstChar { it.titlecase(Locale("ro")) }
+            else -> full.replaceFirstChar { it.titlecase(ro) }
         }
     }
 
@@ -578,6 +713,14 @@ class MainActivity : Activity() {
         calTitle.text = calendar.title()
         calPrev.alpha = if (calendar.canShift(-1)) 1f else 0.3f
         calNext.alpha = if (calendar.canShift(1)) 1f else 0.3f
+    }
+
+    private fun refreshEventDays() {
+        val now = System.currentTimeMillis()
+        calendar.eventDays = CalendarEvents.upcoming(this, prefs, now)
+            .filter { it.time > now }
+            .map { Prefs.dateKey(Calendar.getInstance().apply { timeInMillis = it.time }) }
+            .toSet()
     }
 
     private fun refreshWeekdays() {
@@ -622,6 +765,44 @@ class MainActivity : Activity() {
         timesRow.addView(add)
     }
 
+    /** Lista cu următoarele porniri din calendar, ca să vezi că evenimentele sunt găsite. */
+    private fun refreshEvents() {
+        eventsList.removeAllViews()
+        if (!prefs.eventsEnabled) {
+            eventsList.visibility = View.GONE
+            return
+        }
+        eventsList.visibility = View.VISIBLE
+        if (!CalendarEvents.hasPermission(this)) {
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            row.addView(text("Aplicația are nevoie de acces la calendar.", 14, ink), weightParams())
+            row.addView(pill("Permite", filled = true) { requestCalendar() })
+            eventsList.addView(row)
+            return
+        }
+        val now = System.currentTimeMillis()
+        val list = CalendarEvents.upcoming(this, prefs, now).filter { it.time > now }.take(5)
+        eventsList.addView(text("Următoarele porniri din calendar", 14, muted).apply { setPadding(0, 0, 0, px(4)) })
+        if (list.isEmpty()) {
+            val kw = prefs.eventKeyword.ifBlank { "…" }
+            eventsList.addView(text("Niciun eveniment cu „$kw” în titlu în următoarele două luni.", 14, ink))
+            return
+        }
+        val fmt = SimpleDateFormat("EEE d MMM, HH:mm", ro)
+        for (tr in list) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, px(8), 0, px(4))
+            }
+            row.addView(text(fmt.format(Date(tr.time)).replaceFirstChar { it.titlecase(ro) }, 17, ink).apply {
+                typeface = condensed
+            })
+            val eventTime = SimpleDateFormat("HH:mm", ro).format(Date(tr.eventStart))
+            row.addView(text("${tr.title}, la $eventTime", 14, muted))
+            eventsList.addView(row)
+        }
+    }
+
     private fun refreshNotice() {
         notice.removeAllViews()
         val exact = Scheduler.canScheduleExact(this)
@@ -658,8 +839,8 @@ class MainActivity : Activity() {
 
     private fun runAction(mode: ClimaRunner.Mode) {
         actionButtons.forEach { it.isEnabled = false; it.alpha = 0.4f }
-        heroLast.visibility = View.VISIBLE
-        heroLast.text = when (mode) {
+        tvResult.visibility = View.VISIBLE
+        tvResult.text = when (mode) {
             ClimaRunner.Mode.TEST -> "Verific vremea și contul…"
             ClimaRunner.Mode.STOP -> "Opresc clima…"
             else -> "Pornesc clima…"
@@ -668,8 +849,8 @@ class MainActivity : Activity() {
             val msg = ClimaRunner.run(applicationContext, mode)
             runOnUiThread {
                 actionButtons.forEach { it.isEnabled = true; it.alpha = 1f }
+                tvResult.text = msg
                 refreshAll()
-                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
             }
         }.start()
     }

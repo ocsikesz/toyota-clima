@@ -45,6 +45,56 @@ object Scheduler {
         return null
     }
 
+    /** Pornirile din programul săptămânal într-o zi anume (pentru evitarea dublurilor). */
+    private fun weeklyTimesOn(prefs: Prefs, dayMillis: Long): List<Long> {
+        val day = Calendar.getInstance().apply { timeInMillis = dayMillis }
+        if (!prefs.isActiveOn(day)) return emptyList()
+        return prefs.parsedTimes().map { (h, m) ->
+            (day.clone() as Calendar).apply {
+                set(Calendar.HOUR_OF_DAY, h)
+                set(Calendar.MINUTE, m)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+        }
+    }
+
+    /**
+     * Următoarea pornire dintr-un eveniment din calendar. Sare peste evenimentele aflate
+     * la mai puțin de 15 minute de o pornire din program, ca să nu pornească de două ori.
+     */
+    fun nextEventTrigger(context: Context, prefs: Prefs, from: Long = System.currentTimeMillis()): CalendarEvents.Trigger? {
+        val window = 15 * 60_000L
+        return CalendarEvents.upcoming(context, prefs, from).firstOrNull { tr ->
+            tr.time > from + 30_000 &&
+                weeklyTimesOn(prefs, tr.time).none { kotlin.math.abs(it - tr.time) < window }
+        }
+    }
+
+    // Reverificare periodică a calendarului, pentru evenimente adăugate între timp.
+    private const val REFRESH_CODE = 1002
+    const val ACTION_REFRESH = "ro.ocsike.toyotaclima.REFRESH"
+
+    private fun refreshIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context, REFRESH_CODE,
+        Intent(context, BootReceiver::class.java).setAction(ACTION_REFRESH),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    private fun updateRefresh(context: Context, prefs: Prefs) {
+        val am = context.getSystemService(AlarmManager::class.java)
+        val pi = refreshIntent(context)
+        if (prefs.enabled && prefs.eventsEnabled) {
+            am.setInexactRepeating(
+                AlarmManager.RTC_WAKEUP,
+                System.currentTimeMillis() + AlarmManager.INTERVAL_HALF_HOUR,
+                AlarmManager.INTERVAL_HALF_HOUR, pi,
+            )
+        } else {
+            am.cancel(pi)
+        }
+    }
+
     fun canScheduleExact(context: Context): Boolean {
         val am = context.getSystemService(AlarmManager::class.java)
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms()
@@ -56,11 +106,21 @@ object Scheduler {
         val am = context.getSystemService(AlarmManager::class.java)
         val pi = pendingIntent(context)
         am.cancel(pi)
+        updateRefresh(context, prefs)
+        prefs.nextLabel = ""
         if (!prefs.enabled) {
             prefs.nextRun = 0
             return null
         }
-        val next = nextTrigger(prefs)
+        val weekly = nextTrigger(prefs)
+        val event = nextEventTrigger(context, prefs)
+        val next = when {
+            event != null && (weekly == null || event.time < weekly) -> {
+                prefs.nextLabel = event.title
+                event.time
+            }
+            else -> weekly
+        }
         if (next == null) {
             prefs.nextRun = 0
             return null
