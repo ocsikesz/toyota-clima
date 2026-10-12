@@ -89,6 +89,7 @@ class MainActivity : Activity() {
     // Setări
     private val weekdayViews = mutableListOf<TextView>()
     private lateinit var timesRow: LinearLayout
+    private lateinit var weekendTimesRow: LinearLayout
     private lateinit var etUser: EditText
     private lateinit var etPass: EditText
     private lateinit var etVin: EditText
@@ -386,11 +387,17 @@ class MainActivity : Activity() {
         }
         root.addView(row)
 
-        root.addView(text("Start times", 14, muted).apply { setPadding(0, px(18), 0, px(8)) })
+        root.addView(text("Start times, Monday to Friday", 14, muted).apply { setPadding(0, px(18), 0, px(8)) })
         timesRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         root.addView(HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(timesRow)
+        })
+        root.addView(text("Start times, Saturday and Sunday", 14, muted).apply { setPadding(0, px(16), 0, px(8)) })
+        weekendTimesRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        root.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(weekendTimesRow)
         })
         root.addView(
             text("Tap a time to change it, press and hold to delete it.", 13, muted)
@@ -710,9 +717,10 @@ class MainActivity : Activity() {
         calendar.invalidate()
     }
 
-    private fun setTimes(list: List<Pair<Int, Int>>) {
-        prefs.times = list.distinct().sortedBy { it.first * 60 + it.second }
+    private fun setTimes(weekend: Boolean, list: List<Pair<Int, Int>>) {
+        val value = list.distinct().sortedBy { it.first * 60 + it.second }
             .joinToString(", ") { (h, m) -> String.format(Locale.US, "%02d:%02d", h, m) }
+        if (weekend) prefs.weekendTimes = value else prefs.times = value
         refreshTimes()
         reschedule()
     }
@@ -750,7 +758,7 @@ class MainActivity : Activity() {
                 val label = prefs.nextLabel
                 heroDate.text = dayName(next) + if (label.isNotBlank()) ", for \"$label\"" else ""
             }
-            prefs.parsedTimes().isEmpty() && !prefs.eventsEnabled -> {
+            !prefs.hasAnyTimes() && !prefs.eventsEnabled -> {
                 heroTime.text = "—"
                 heroDate.text = "Add a start time in Settings."
             }
@@ -804,31 +812,38 @@ class MainActivity : Activity() {
     }
 
     private fun refreshTimes() {
-        timesRow.removeAllViews()
-        val times = prefs.parsedTimes()
+        fillTimes(timesRow, weekend = false)
+        fillTimes(weekendTimesRow, weekend = true)
+    }
+
+    /** Butoanele cu ore pentru un grup de zile; atingere = schimbă, ținut apăsat = șterge. */
+    private fun fillTimes(row: LinearLayout, weekend: Boolean) {
+        row.removeAllViews()
+        val times = if (weekend) prefs.parsedWeekendTimes() else prefs.parsedTimes()
         times.forEachIndexed { idx, (h, m) ->
             val label = String.format(Locale.US, "%02d:%02d", h, m)
             val chip = pill(label, filled = false) {
                 TimePickerDialog(this, { _, nh, nm ->
                     val list = times.toMutableList()
                     list[idx] = nh to nm
-                    setTimes(list)
+                    setTimes(weekend, list)
                 }, h, m, true).show()
             }.apply {
                 textSize = 18f
                 typeface = condensed
                 setOnLongClickListener {
-                    setTimes(times.filterIndexed { i, _ -> i != idx })
+                    setTimes(weekend, times.filterIndexed { i, _ -> i != idx })
                     Toast.makeText(this@MainActivity, "Deleted $label", Toast.LENGTH_SHORT).show()
                     true
                 }
             }
-            timesRow.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = px(8) })
+            row.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = px(8) })
         }
         val add = pill("+ Add time", filled = false) {
-            TimePickerDialog(this, { _, nh, nm -> setTimes(times + (nh to nm)) }, 7, 0, true).show()
+            val (dh, dm) = if (weekend) 9 to 0 else 7 to 0
+            TimePickerDialog(this, { _, nh, nm -> setTimes(weekend, times + (nh to nm)) }, dh, dm, true).show()
         }.apply { setTextColor(muted) }
-        timesRow.addView(add)
+        row.addView(add)
     }
 
     /** Lista cu următoarele porniri din calendar, ca să vezi că evenimentele sunt găsite. */

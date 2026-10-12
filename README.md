@@ -6,7 +6,8 @@ An Android app that starts your Toyota's climate control at scheduled times, bas
 - warmer than the cooling threshold (default 24°C) → cools to 20°C;
 - in between → nothing starts.
 
-Default schedule: Monday–Friday at 06:20 and 14:30. Times, days, thresholds and location are all set in the app.
+Default schedule: Monday–Friday at 06:20 and 14:30. Saturday and Sunday have their own start times (default 09:00),
+used when you turn those days on. Times, days, thresholds and location are all set in the app.
 
 ## Install
 

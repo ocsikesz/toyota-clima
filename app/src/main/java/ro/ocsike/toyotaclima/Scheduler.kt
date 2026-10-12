@@ -21,14 +21,14 @@ object Scheduler {
 
     /** Următorul moment de rulare după [from], sau null dacă nu e nimic programat. */
     fun nextTrigger(prefs: Prefs, from: Long = System.currentTimeMillis()): Long? {
-        val times = prefs.parsedTimes()
-        if (times.isEmpty()) return null
+        if (!prefs.hasAnyTimes()) return null
         // Caută până la ~2 luni înainte, ca să treacă și peste concedii marcate în calendar.
         for (offset in 0..62) {
             val day = Calendar.getInstance()
             day.timeInMillis = from
             day.add(Calendar.DAY_OF_YEAR, offset)
             if (!prefs.isActiveOn(day)) continue
+            val times = prefs.timesFor(day)
             var best: Long? = null
             for ((h, m) in times) {
                 val cal = day.clone() as Calendar
@@ -49,7 +49,7 @@ object Scheduler {
     fun weeklyTimesOn(prefs: Prefs, dayMillis: Long): List<Long> {
         val day = Calendar.getInstance().apply { timeInMillis = dayMillis }
         if (!prefs.isActiveOn(day)) return emptyList()
-        return prefs.parsedTimes().map { (h, m) ->
+        return prefs.timesFor(day).map { (h, m) ->
             (day.clone() as Calendar).apply {
                 set(Calendar.HOUR_OF_DAY, h)
                 set(Calendar.MINUTE, m)

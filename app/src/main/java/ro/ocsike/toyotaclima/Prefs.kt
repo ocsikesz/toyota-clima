@@ -46,10 +46,15 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("enabled", false)
         set(v) = sp.edit().putBoolean("enabled", v).apply()
 
-    /** Ore de pornire, format "HH:MM", separate prin virgulă. */
+    /** Ore de pornire luni–vineri, format "HH:MM", separate prin virgulă. */
     var times: String
         get() = str("times", "06:20, 14:30")
         set(v) = putStr("times", v)
+
+    /** Ore de pornire sâmbătă–duminică. */
+    var weekendTimes: String
+        get() = str("weekend_times", "09:00")
+        set(v) = putStr("weekend_times", v)
 
     /** Zile active, constante Calendar (MONDAY=2 ... SUNDAY=1). */
     var days: Set<Int>
@@ -151,8 +156,22 @@ class Prefs(context: Context) {
         offDates = off
     }
 
-    /** Ore parsate: listă de (oră, minut). */
-    fun parsedTimes(): List<Pair<Int, Int>> = times.split(',', ';', ' ')
+    /** Ore parsate luni–vineri: listă de (oră, minut). */
+    fun parsedTimes(): List<Pair<Int, Int>> = parseTimes(times)
+
+    /** Ore parsate sâmbătă–duminică. */
+    fun parsedWeekendTimes(): List<Pair<Int, Int>> = parseTimes(weekendTimes)
+
+    fun isWeekend(cal: Calendar): Boolean =
+        cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+
+    /** Orele care se aplică într-o zi anume: de weekend sau de luni–vineri. */
+    fun timesFor(cal: Calendar): List<Pair<Int, Int>> =
+        if (isWeekend(cal)) parsedWeekendTimes() else parsedTimes()
+
+    fun hasAnyTimes(): Boolean = parsedTimes().isNotEmpty() || parsedWeekendTimes().isNotEmpty()
+
+    private fun parseTimes(s: String): List<Pair<Int, Int>> = s.split(',', ';', ' ')
         .map { it.trim() }
         .filter { it.isNotEmpty() }
         .mapNotNull { t ->
