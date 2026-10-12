@@ -1,17 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Semnul ToyClimate: termometru pe pătrat bleumarin, lichid chihlimbar -->
+<!-- Logo = iconița aplicației (ic_launcher), decupată la zona vizibilă de 72 din 108. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="30dp"
-    android:height="30dp"
-    android:viewportWidth="28"
-    android:viewportHeight="28">
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
     <path
-        android:fillColor="@color/hero_bg"
-        android:pathData="M7,0h14a7,7 0 0 1 7,7v14a7,7 0 0 1 -7,7h-14a7,7 0 0 1 -7,-7v-14a7,7 0 0 1 7,-7z" />
-    <path
-        android:fillColor="@color/hero_text"
-        android:pathData="M11.5,8.5a2.5,2.5 0 0 1 5,0v7.6a4.2,4.2 0 1 1 -5,0z" />
-    <path
-        android:fillColor="@color/heat"
-        android:pathData="M13,11.5h2v5.5a2.6,2.6 0 1 1 -2,0z" />
+        android:fillColor="#1F4E79"
+        android:pathData="M16,0h40a16,16 0 0 1 16,16v40a16,16 0 0 1 -16,16h-40a16,16 0 0 1 -16,-16v-40a16,16 0 0 1 16,-16z" />
+    <group
+        android:translateX="-18"
+        android:translateY="-18">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M48,30 a6,6 0 0,1 12,0 v28 a12,12 0 1,1 -12,0 z" />
+        <path
+            android:fillColor="#F28C28"
+            android:pathData="M51,44 h6 v17 a8,8 0 1,1 -6,0 z" />
+        <path
+            android:fillColor="#8EC9F0"
+            android:pathData="M64,34 h8 v2.5 h-8 z M64,41 h6 v2.5 h-6 z M64,48 h8 v2.5 h-8 z" />
+    </group>
 </vector>

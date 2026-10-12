@@ -195,7 +195,7 @@ class MainActivity : Activity() {
         bar.addView(ImageView(this).apply {
             setImageResource(R.drawable.logo_mark)
             contentDescription = null
-        }, LinearLayout.LayoutParams(px(30), px(30)).apply { leftMargin = px(4) })
+        }, LinearLayout.LayoutParams(px(34), px(34)).apply { leftMargin = px(4) })
         bar.addView(text("ToyClimate", 22, ink).apply {
             typeface = condensed
             letterSpacing = 0.01f
