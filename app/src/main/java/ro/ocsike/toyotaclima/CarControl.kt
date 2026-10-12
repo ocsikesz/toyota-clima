@@ -124,7 +124,7 @@ object CarControl {
         } catch (e: Exception) {
             "Eroare: ${e.javaClass.simpleName}: ${e.message}"
         }
-        prefs.log("Stare mașină: ${message.replace('\n', ' · ')}")
+        prefs.log("Stare mașină: ${message.replace("\n", " · ")}")
         return message
     }
 
@@ -153,7 +153,7 @@ object CarControl {
         } catch (e: Exception) {
             "${cmd.label} — eroare: ${e.javaClass.simpleName}: ${e.message}"
         }
-        prefs.log(message.replace('\n', ' · '))
+        prefs.log(message.replace("\n", " · "))
         return message
     }
 }
