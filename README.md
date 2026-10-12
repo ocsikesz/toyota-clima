@@ -22,7 +22,8 @@ Default schedule: Monday–Friday at 06:20 and 14:30. Times, days, thresholds an
 Open them from the ☰ menu at the top left.
 
 - **Home**: the next start and the month calendar. Filled days follow your weekly schedule, outlined days have a
-  calendar event. Tap a day to turn it on or off just for that date; a dot marks the days you changed.
+  calendar event, and a dot marks the days you changed. Tap a day to open its list: the climate starts, every
+  Google Calendar event that day, what the log recorded, and a switch to turn the climate on or off for that date only.
 - **Settings**: Toyota account, weekly schedule and start times, temperatures, calendar events and test.
 - **Log**: every start and every test.
 

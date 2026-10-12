@@ -15,11 +15,12 @@ import kotlin.math.min
 /**
  * Calendar lunar desenat direct pe Canvas.
  * Zilele în care pornește clima sunt discuri chihlimbarii; un punct marchează excepțiile
- * puse manual. O atingere pe o zi (de azi încolo) o pornește sau o oprește doar pe ea.
+ * puse manual. O atingere pe o zi deschide lista cu ce se întâmplă în ziua aceea.
  */
 class MonthCalendarView(context: Context, private val prefs: Prefs) : View(context) {
 
-    var onDayToggled: (() -> Unit)? = null
+    /** Atingere pe o zi: deschide lista cu ce se întâmplă în ziua aceea. */
+    var onDayTapped: ((Calendar) -> Unit)? = null
 
     /** Zile ("yyyy-MM-dd") cu evenimente din calendar care pornesc clima: desenate cu contur. */
     var eventDays: Set<String> = emptySet()
@@ -173,12 +174,8 @@ class MonthCalendarView(context: Context, private val prefs: Prefs) : View(conte
                 val row = ((event.y - headerH) / rowH).toInt()
                 val day = row * 7 + col - firstColumn() + 1
                 if (day !in 1..daysInMonth()) return true
-                val cal = dayCal(day)
-                if (Prefs.dateKey(cal) < Prefs.dateKey(Calendar.getInstance())) return true
-                prefs.toggleDate(cal)
                 performClick()
-                invalidate()
-                onDayToggled?.invoke()
+                onDayTapped?.invoke(dayCal(day))
                 return true
             }
         }

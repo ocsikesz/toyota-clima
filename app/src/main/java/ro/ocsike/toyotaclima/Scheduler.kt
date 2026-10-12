@@ -46,7 +46,7 @@ object Scheduler {
     }
 
     /** Pornirile din programul săptămânal într-o zi anume (pentru evitarea dublurilor). */
-    private fun weeklyTimesOn(prefs: Prefs, dayMillis: Long): List<Long> {
+    fun weeklyTimesOn(prefs: Prefs, dayMillis: Long): List<Long> {
         val day = Calendar.getInstance().apply { timeInMillis = dayMillis }
         if (!prefs.isActiveOn(day)) return emptyList()
         return prefs.parsedTimes().map { (h, m) ->

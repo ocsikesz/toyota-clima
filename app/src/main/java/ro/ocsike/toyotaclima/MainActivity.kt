@@ -327,13 +327,13 @@ class MainActivity : Activity() {
         root.addView(header)
 
         calendar = MonthCalendarView(this, prefs)
-        calendar.onDayToggled = { reschedule() }
+        calendar.onDayTapped = { day -> DaySheet(this, prefs, day) { reschedule() }.show() }
         root.addView(calendar)
 
         root.addView(
             text(
                 "Filled days follow your weekly schedule, outlined days have a calendar event. " +
-                    "Tap a day to turn it on or off just for that date; a dot marks the days you changed.",
+                    "Tap a day to see everything that happens on it; a dot marks the days you changed.",
                 13, muted,
             ).apply {
                 setPadding(0, px(10), 0, 0)
