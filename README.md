@@ -6,8 +6,9 @@ An Android app that starts your Toyota's climate control at scheduled times, bas
 - warmer than the cooling threshold (default 24°C) → cools to 20°C;
 - in between → nothing starts.
 
-Default schedule: Monday–Friday at 06:20 and 14:30. Saturday and Sunday have their own start times (default 09:00),
-used when you turn those days on. Times, days, thresholds and location are all set in the app.
+Schedules: add as many as you like in **Settings → Schedule**. Each one has the days you tick (for example Tuesday
+and Thursday), its own start times and an on/off switch. One-time starts run once on a date and time you pick.
+The default schedule is Monday–Friday at 06:20 and 14:30.
 
 ## Install
 
@@ -24,8 +25,9 @@ Open them from the ☰ menu at the top left.
 
 - **Home**: the next start and the month calendar. Filled days follow your weekly schedule, outlined days have a
   calendar event, and a dot marks the days you changed. Tap a day to open its list: the climate starts, every
-  Google Calendar event that day, what the log recorded, and a switch to turn the climate on or off for that date only.
-- **Settings**: Toyota account, weekly schedule and start times, temperatures, calendar events and test.
+  Google Calendar event that day, what the log recorded, a switch to skip your schedules on that date only, and a
+  button to add a one-time start.
+- **Settings**: Toyota account, schedules and one-time starts, temperatures, calendar events and test.
 - **Log**: every start and every test.
 
 ## Google Calendar events

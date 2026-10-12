@@ -2,6 +2,8 @@ package ro.ocsike.toyotaclima
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
+import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -87,9 +89,8 @@ class MainActivity : Activity() {
     private lateinit var calNext: TextView
 
     // Setări
-    private val weekdayViews = mutableListOf<TextView>()
-    private lateinit var timesRow: LinearLayout
-    private lateinit var weekendTimesRow: LinearLayout
+    private lateinit var schedulesBox: LinearLayout
+    private lateinit var oneOffBox: LinearLayout
     private lateinit var etUser: EditText
     private lateinit var etPass: EditText
     private lateinit var etVin: EditText
@@ -333,8 +334,8 @@ class MainActivity : Activity() {
 
         root.addView(
             text(
-                "Filled days follow your weekly schedule, outlined days have a calendar event. " +
-                    "Tap a day to see everything that happens on it; a dot marks the days you changed.",
+                "Filled days have a climate start, outlined days have a calendar event, and a dot marks " +
+                    "the days you changed. Tap a day to see everything that happens on it.",
                 13, muted,
             ).apply {
                 setPadding(0, px(10), 0, 0)
@@ -363,46 +364,30 @@ class MainActivity : Activity() {
 
     private fun buildSchedule() {
         sectionTitle("Schedule")
-        root.addView(text("Every week", 14, muted).apply { setPadding(0, 0, 0, px(8)) })
+        root.addView(
+            text("Each schedule starts the climate on the days you tick, at its own times.", 13, muted)
+                .apply { setLineSpacing(0f, 1.15f) },
+        )
+        schedulesBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(schedulesBox)
+        root.addView(pill("+ Add schedule", filled = false) {
+            prefs.rules = prefs.rules + Rule(prefs.newId(), emptySet(), listOf(7 to 0), true)
+            refreshSchedules()
+            reschedule()
+        }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(14) })
 
-        val row = LinearLayout(this)
-        Prefs.DAY_ORDER.forEachIndexed { i, day ->
-            val cell = FrameLayout(this)
-            val v = text(Prefs.DAY_LABELS[i], 14, ink).apply {
-                gravity = Gravity.CENTER
-                typeface = medium
-                isClickable = true
-                isFocusable = true
-                setOnClickListener {
-                    val days = prefs.days.toMutableSet()
-                    if (day in days) days.remove(day) else days.add(day)
-                    prefs.days = days
-                    refreshWeekdays()
-                    reschedule()
-                }
-            }
-            weekdayViews.add(v)
-            cell.addView(v, FrameLayout.LayoutParams(px(40), px(40), Gravity.CENTER))
-            row.addView(cell, weightParams())
-        }
-        root.addView(row)
-
-        root.addView(text("Start times, Monday to Friday", 14, muted).apply { setPadding(0, px(18), 0, px(8)) })
-        timesRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        root.addView(HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(timesRow)
-        })
-        root.addView(text("Start times, Saturday and Sunday", 14, muted).apply { setPadding(0, px(16), 0, px(8)) })
-        weekendTimesRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        root.addView(HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(weekendTimesRow)
+        root.addView(text("One-time starts", 16, ink).apply {
+            typeface = medium
+            setPadding(0, px(26), 0, px(2))
         })
         root.addView(
-            text("Tap a time to change it, press and hold to delete it.", 13, muted)
-                .apply { setPadding(0, px(8), 0, 0) },
+            text("A single start on a date you pick. You can also add one from a day in the calendar.", 13, muted)
+                .apply { setLineSpacing(0f, 1.15f) },
         )
+        oneOffBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(oneOffBox)
+        root.addView(pill("+ Add one-time start", filled = false) { pickOneOff() },
+            LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(10) })
     }
 
     private fun buildTemperatures() {
@@ -717,12 +702,26 @@ class MainActivity : Activity() {
         calendar.invalidate()
     }
 
-    private fun setTimes(weekend: Boolean, list: List<Pair<Int, Int>>) {
-        val value = list.distinct().sortedBy { it.first * 60 + it.second }
-            .joinToString(", ") { (h, m) -> String.format(Locale.US, "%02d:%02d", h, m) }
-        if (weekend) prefs.weekendTimes = value else prefs.times = value
-        refreshTimes()
+    private fun sortedTimes(list: List<Pair<Int, Int>>) = list.distinct().sortedBy { it.first * 60 + it.second }
+
+    private fun updateRule(id: Long, change: (Rule) -> Rule) {
+        prefs.rules = prefs.rules.map { if (it.id == id) change(it) else it }
+        refreshSchedules()
         reschedule()
+    }
+
+    private fun pickOneOff() {
+        val now = Calendar.getInstance()
+        DatePickerDialog(this, { _, y, mo, d ->
+            TimePickerDialog(this, { _, h, m ->
+                val cal = Calendar.getInstance().apply { set(y, mo, d) }
+                prefs.oneOffs = prefs.oneOffs + OneOff(prefs.newId(), Prefs.dateKey(cal), h to m)
+                refreshSchedules()
+                reschedule()
+            }, 8, 0, true).show()
+        }, now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH)).apply {
+            datePicker.minDate = now.timeInMillis - 1000
+        }.show()
     }
 
     private fun requestCalendar() {
@@ -739,8 +738,7 @@ class MainActivity : Activity() {
         refreshCalendarHeader()
         refreshEventDays()
         calendar.invalidate()
-        refreshWeekdays()
-        refreshTimes()
+        refreshSchedules()
         refreshEvents()
         tvLog.text = prefs.logText().ifBlank { "Nothing yet. Every start and every test shows up here." }
     }
@@ -797,53 +795,152 @@ class MainActivity : Activity() {
             .toSet()
     }
 
-    private fun refreshWeekdays() {
-        val days = prefs.days
-        Prefs.DAY_ORDER.forEachIndexed { i, day ->
-            val on = day in days
-            val v = weekdayViews[i]
-            v.setTextColor(if (on) onHeat else ink)
-            v.background = ripple(GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                if (on) setColor(heat) else setStroke(px(1.5f), line)
-            })
-            v.contentDescription = Prefs.DAY_LABELS[i] + if (on) ", on" else ", off"
+    private fun refreshSchedules() {
+        schedulesBox.removeAllViews()
+        val rules = prefs.rules
+        if (rules.isEmpty()) {
+            schedulesBox.addView(text("No schedules yet.", 15, muted).apply { setPadding(0, px(10), 0, 0) })
         }
+        rules.forEach { r ->
+            schedulesBox.addView(ruleView(r), LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(12) })
+        }
+        refreshOneOffs()
     }
 
-    private fun refreshTimes() {
-        fillTimes(timesRow, weekend = false)
-        fillTimes(weekendTimesRow, weekend = true)
-    }
+    /** Un program: zilele (titlu + comutator), zilele de bifat, orele și ștergerea. */
+    private fun ruleView(r: Rule): View {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(px(14), px(10), px(14), px(12))
+            background = GradientDrawable().apply {
+                cornerRadius = 16 * dp
+                setStroke(px(1.5f), line)
+            }
+        }
 
-    /** Butoanele cu ore pentru un grup de zile; atingere = schimbă, ținut apăsat = șterge. */
-    private fun fillTimes(row: LinearLayout, weekend: Boolean) {
-        row.removeAllViews()
-        val times = if (weekend) prefs.parsedWeekendTimes() else prefs.parsedTimes()
-        times.forEachIndexed { idx, (h, m) ->
+        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        header.addView(text(Prefs.daysLabel(r.days), 17, ink).apply {
+            typeface = medium
+            alpha = if (r.enabled) 1f else 0.5f
+        }, weightParams())
+        header.addView(Switch(this).apply {
+            isChecked = r.enabled
+            thumbTintList = checkedTint(heat, 0xFFBFC8D4.toInt())
+            trackTintList = checkedTint(heat, line)
+            contentDescription = "Schedule ${Prefs.daysLabel(r.days)} on"
+            setOnCheckedChangeListener { _, checked -> updateRule(r.id) { it.copy(enabled = checked) } }
+        })
+        box.addView(header)
+
+        val daysRow = LinearLayout(this).apply { setPadding(0, px(8), 0, px(4)) }
+        Prefs.DAY_ORDER.forEachIndexed { i, day ->
+            val on = day in r.days
+            val cell = FrameLayout(this)
+            cell.addView(text(Prefs.DAY_LABELS[i], 13, if (on) onHeat else ink).apply {
+                gravity = Gravity.CENTER
+                typeface = medium
+                isClickable = true
+                isFocusable = true
+                contentDescription = Prefs.DAY_LABELS[i] + if (on) ", ticked" else ", not ticked"
+                background = ripple(GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    if (on) setColor(heat) else setStroke(px(1.5f), line)
+                })
+                setOnClickListener {
+                    updateRule(r.id) { it.copy(days = if (on) it.days - day else it.days + day) }
+                }
+            }, FrameLayout.LayoutParams(px(36), px(36), Gravity.CENTER))
+            daysRow.addView(cell, weightParams())
+        }
+        box.addView(daysRow)
+
+        val timesRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        r.times.forEachIndexed { idx, (h, m) ->
             val label = String.format(Locale.US, "%02d:%02d", h, m)
             val chip = pill(label, filled = false) {
                 TimePickerDialog(this, { _, nh, nm ->
-                    val list = times.toMutableList()
+                    val list = r.times.toMutableList()
                     list[idx] = nh to nm
-                    setTimes(weekend, list)
+                    updateRule(r.id) { it.copy(times = sortedTimes(list)) }
                 }, h, m, true).show()
             }.apply {
                 textSize = 18f
                 typeface = condensed
                 setOnLongClickListener {
-                    setTimes(weekend, times.filterIndexed { i, _ -> i != idx })
+                    updateRule(r.id) { it.copy(times = r.times.filterIndexed { i, _ -> i != idx }) }
                     Toast.makeText(this@MainActivity, "Deleted $label", Toast.LENGTH_SHORT).show()
                     true
                 }
             }
-            row.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = px(8) })
+            timesRow.addView(chip, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = px(8) })
         }
-        val add = pill("+ Add time", filled = false) {
-            val (dh, dm) = if (weekend) 9 to 0 else 7 to 0
-            TimePickerDialog(this, { _, nh, nm -> setTimes(weekend, times + (nh to nm)) }, dh, dm, true).show()
-        }.apply { setTextColor(muted) }
-        row.addView(add)
+        timesRow.addView(pill("+ Add time", filled = false) {
+            TimePickerDialog(this, { _, nh, nm ->
+                updateRule(r.id) { it.copy(times = sortedTimes(r.times + (nh to nm))) }
+            }, 7, 0, true).show()
+        }.apply { setTextColor(muted) })
+        box.addView(HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setPadding(0, px(6), 0, 0)
+            addView(timesRow)
+        })
+
+        val footer = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, px(10), 0, 0)
+        }
+        footer.addView(text("Tap a time to change it, hold to delete it.", 12, muted), weightParams())
+        footer.addView(text("Delete", 14, ink).apply {
+            typeface = medium
+            setPadding(px(12), px(6), 0, px(6))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                AlertDialog.Builder(this@MainActivity)
+                    .setMessage("Delete the ${Prefs.daysLabel(r.days)} schedule?")
+                    .setPositiveButton("Delete") { _, _ ->
+                        prefs.rules = prefs.rules.filter { it.id != r.id }
+                        refreshSchedules()
+                        reschedule()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        })
+        box.addView(footer)
+        return box
+    }
+
+    private fun refreshOneOffs() {
+        oneOffBox.removeAllViews()
+        val list = prefs.oneOffs
+        if (list.isEmpty()) {
+            oneOffBox.addView(text("None planned.", 15, muted).apply { setPadding(0, px(10), 0, 0) })
+            return
+        }
+        val parse = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val show = SimpleDateFormat("EEE, MMM d", en)
+        list.forEach { o ->
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, px(10), 0, px(2))
+            }
+            val date = try { show.format(parse.parse(o.date)!!) } catch (e: Exception) { o.date }
+            val time = String.format(Locale.US, "%02d:%02d", o.time.first, o.time.second)
+            row.addView(text("$date at $time", 17, ink).apply { typeface = condensed }, weightParams())
+            row.addView(text("Remove", 14, ink).apply {
+                typeface = medium
+                setPadding(px(12), px(6), 0, px(6))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    prefs.oneOffs = prefs.oneOffs.filter { it.id != o.id }
+                    refreshSchedules()
+                    reschedule()
+                }
+            })
+            oneOffBox.addView(row)
+        }
     }
 
     /** Lista cu următoarele porniri din calendar, ca să vezi că evenimentele sunt găsite. */

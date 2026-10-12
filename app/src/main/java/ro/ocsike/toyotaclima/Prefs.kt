@@ -6,6 +6,14 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
+
+/** Un program repetitiv: zilele săptămânii, orele și dacă e activ. */
+data class Rule(val id: Long, val days: Set<Int>, val times: List<Pair<Int, Int>>, val enabled: Boolean)
+
+/** O pornire o singură dată: data "yyyy-MM-dd" și ora. */
+data class OneOff(val id: Long, val date: String, val time: Pair<Int, Int>)
 
 class Prefs(context: Context) {
     private val sp: SharedPreferences =
@@ -46,20 +54,80 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("enabled", false)
         set(v) = sp.edit().putBoolean("enabled", v).apply()
 
-    /** Ore de pornire luni–vineri, format "HH:MM", separate prin virgulă. */
-    var times: String
-        get() = str("times", "06:20, 14:30")
-        set(v) = putStr("times", v)
+    /**
+     * Programe repetitive: fiecare are zilele lui (constante Calendar, MONDAY=2 ... SUNDAY=1),
+     * orele lui și un comutator. Salvate ca JSON. La prima citire se migrează vechile
+     * „days” + „times” (+ „weekend_times”) într-unul sau două programe.
+     */
+    var rules: List<Rule>
+        get() {
+            val raw = sp.getString("rules", null) ?: return migrateRules().also { rules = it }
+            return try {
+                val arr = JSONArray(raw)
+                (0 until arr.length()).map { i ->
+                    val o = arr.getJSONObject(i)
+                    val d = o.getJSONArray("days")
+                    Rule(
+                        id = o.getLong("id"),
+                        days = (0 until d.length()).map { d.getInt(it) }.toSet(),
+                        times = parseTimes(o.optString("times")),
+                        enabled = o.optBoolean("on", true),
+                    )
+                }
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        set(v) {
+            val arr = JSONArray()
+            v.forEach { r ->
+                arr.put(
+                    JSONObject()
+                        .put("id", r.id)
+                        .put("days", JSONArray(r.days.sorted()))
+                        .put("times", formatTimes(r.times))
+                        .put("on", r.enabled),
+                )
+            }
+            putStr("rules", arr.toString())
+        }
 
-    /** Ore de pornire sâmbătă–duminică. */
-    var weekendTimes: String
-        get() = str("weekend_times", "09:00")
-        set(v) = putStr("weekend_times", v)
+    private fun migrateRules(): List<Rule> {
+        val oldDays = str("days", "2,3,4,5,6").split(',').mapNotNull { it.trim().toIntOrNull() }.toSet()
+        val weekDays = oldDays.filter { it in Calendar.MONDAY..Calendar.FRIDAY }.toSet()
+        val weekendDays = oldDays.filter { it == Calendar.SATURDAY || it == Calendar.SUNDAY }.toSet()
+        val list = mutableListOf<Rule>()
+        if (weekDays.isNotEmpty()) list += Rule(1, weekDays, parseTimes(str("times", "06:20, 14:30")), true)
+        if (weekendDays.isNotEmpty()) list += Rule(2, weekendDays, parseTimes(str("weekend_times", "09:00")), true)
+        if (list.isEmpty()) {
+            list += Rule(1, (Calendar.MONDAY..Calendar.FRIDAY).toSet(), listOf(6 to 20, 14 to 30), true)
+        }
+        return list
+    }
 
-    /** Zile active, constante Calendar (MONDAY=2 ... SUNDAY=1). */
-    var days: Set<Int>
-        get() = str("days", "2,3,4,5,6").split(',').mapNotNull { it.trim().toIntOrNull() }.toSet()
-        set(v) = putStr("days", v.sorted().joinToString(","))
+    /** Porniri o singură dată (dată + oră). Cele din zilele trecute se șterg automat. */
+    var oneOffs: List<OneOff>
+        get() = try {
+            val arr = JSONArray(str("one_offs", "[]"))
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.getJSONObject(i)
+                val t = parseTimes(o.optString("time")).firstOrNull() ?: return@mapNotNull null
+                OneOff(o.getLong("id"), o.getString("date"), t)
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        set(v) {
+            val today = dateKey(Calendar.getInstance())
+            val arr = JSONArray()
+            v.filter { it.date >= today }.sortedWith(compareBy({ it.date }, { it.time.first * 60 + it.time.second }))
+                .forEach { o ->
+                    arr.put(JSONObject().put("id", o.id).put("date", o.date).put("time", formatTimes(listOf(o.time))))
+                }
+            putStr("one_offs", arr.toString())
+        }
+
+    fun newId(): Long = System.currentTimeMillis()
 
     // Praguri
     var heatBelow: Double
@@ -114,62 +182,55 @@ class Prefs(context: Context) {
         get() = sp.getInt("event_lead", 5)
         set(v) = sp.edit().putInt("event_lead", v).apply()
 
-    // Excepții pe date concrete, format "yyyy-MM-dd": zile pornite / oprite manual din calendar.
-    private fun dateSet(key: String): Set<String> =
-        str(key).split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-
-    private fun putDateSet(key: String, v: Set<String>) {
-        val today = dateKey(Calendar.getInstance())
-        putStr(key, v.filter { it >= today }.sorted().joinToString(","))
-    }
-
-    var onDates: Set<String>
-        get() = dateSet("on_dates")
-        set(v) = putDateSet("on_dates", v)
+    // Zile sărite: data "yyyy-MM-dd" în care programele repetitive nu pornesc (ex. concediu).
     var offDates: Set<String>
-        get() = dateSet("off_dates")
-        set(v) = putDateSet("off_dates", v)
+        get() = str("off_dates").split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        set(v) {
+            val today = dateKey(Calendar.getInstance())
+            putStr("off_dates", v.filter { it >= today }.sorted().joinToString(","))
+        }
 
-    /** Pornește clima în ziua asta? Excepțiile au prioritate față de zilele săptămânii. */
-    fun isActiveOn(cal: Calendar): Boolean {
+    fun isSkipped(cal: Calendar): Boolean = dateKey(cal) in offDates
+
+    fun setSkipped(cal: Calendar, skip: Boolean) {
         val k = dateKey(cal)
-        if (k in offDates) return false
-        if (k in onDates) return true
-        return cal.get(Calendar.DAY_OF_WEEK) in days
+        offDates = if (skip) offDates + k else offDates - k
     }
 
+    /** O pornire într-o zi anume și de unde vine (program sau pornire unică). */
+    data class Start(val time: Pair<Int, Int>, val label: String, val oneOffId: Long? = null)
+
+    /** Programele active care se aplică în ziua săptămânii respective. */
+    fun rulesOn(cal: Calendar): List<Rule> =
+        rules.filter { it.enabled && cal.get(Calendar.DAY_OF_WEEK) in it.days && it.times.isNotEmpty() }
+
+    /** Toate pornirile dintr-o zi: programele (dacă ziua nu e sărită) + pornirile unice. */
+    fun startsOn(cal: Calendar): List<Start> {
+        val k = dateKey(cal)
+        val list = mutableListOf<Start>()
+        if (k !in offDates) {
+            rulesOn(cal).forEach { r -> r.times.forEach { list += Start(it, daysLabel(r.days)) } }
+        }
+        oneOffs.filter { it.date == k }.forEach { list += Start(it.time, "One-time start", it.id) }
+        return list.distinctBy { it.time }.sortedBy { it.time.first * 60 + it.time.second }
+    }
+
+    fun timesOn(cal: Calendar): List<Pair<Int, Int>> = startsOn(cal).map { it.time }
+
+    /** Pornește clima în ziua asta? */
+    fun isActiveOn(cal: Calendar): Boolean = startsOn(cal).isNotEmpty()
+
+    /** Ziua diferă de programul obișnuit: sărită sau cu pornire unică. */
     fun isException(cal: Calendar): Boolean {
         val k = dateKey(cal)
-        return k in onDates || k in offDates
+        return (k in offDates && rulesOn(cal).isNotEmpty()) || oneOffs.any { it.date == k }
     }
 
-    /** Inversează o singură zi din calendar, fără să schimbe programul săptămânal. */
-    fun toggleDate(cal: Calendar) {
-        val k = dateKey(cal)
-        val active = isActiveOn(cal)
-        val weekly = cal.get(Calendar.DAY_OF_WEEK) in days
-        val on = onDates.toMutableSet().apply { remove(k) }
-        val off = offDates.toMutableSet().apply { remove(k) }
-        if (active && weekly) off.add(k)
-        if (!active && !weekly) on.add(k)
-        onDates = on
-        offDates = off
-    }
+    fun hasAnyTimes(): Boolean =
+        rules.any { it.enabled && it.days.isNotEmpty() && it.times.isNotEmpty() } || oneOffs.isNotEmpty()
 
-    /** Ore parsate luni–vineri: listă de (oră, minut). */
-    fun parsedTimes(): List<Pair<Int, Int>> = parseTimes(times)
-
-    /** Ore parsate sâmbătă–duminică. */
-    fun parsedWeekendTimes(): List<Pair<Int, Int>> = parseTimes(weekendTimes)
-
-    fun isWeekend(cal: Calendar): Boolean =
-        cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
-
-    /** Orele care se aplică într-o zi anume: de weekend sau de luni–vineri. */
-    fun timesFor(cal: Calendar): List<Pair<Int, Int>> =
-        if (isWeekend(cal)) parsedWeekendTimes() else parsedTimes()
-
-    fun hasAnyTimes(): Boolean = parsedTimes().isNotEmpty() || parsedWeekendTimes().isNotEmpty()
+    private fun formatTimes(list: List<Pair<Int, Int>>): String =
+        list.joinToString(", ") { (h, m) -> String.format(Locale.US, "%02d:%02d", h, m) }
 
     private fun parseTimes(s: String): List<Pair<Int, Int>> = s.split(',', ';', ' ')
         .map { it.trim() }
@@ -201,6 +262,16 @@ class Prefs(context: Context) {
             Calendar.FRIDAY, Calendar.SATURDAY, Calendar.SUNDAY,
         )
         val DAY_LABELS = listOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+        private val DAY_NAMES = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+        /** „Monday to Friday”, „Weekend”, „Every day” sau „Tue, Thu”. */
+        fun daysLabel(days: Set<Int>): String = when {
+            days.isEmpty() -> "No days selected"
+            days.size == 7 -> "Every day"
+            days == (Calendar.MONDAY..Calendar.FRIDAY).toSet() -> "Monday to Friday"
+            days == setOf(Calendar.SATURDAY, Calendar.SUNDAY) -> "Weekend"
+            else -> DAY_ORDER.filter { it in days }.joinToString(", ") { DAY_NAMES[DAY_ORDER.indexOf(it)] }
+        }
 
         fun dateKey(cal: Calendar): String = String.format(
             Locale.US, "%04d-%02d-%02d",

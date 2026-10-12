@@ -27,8 +27,8 @@ object Scheduler {
             val day = Calendar.getInstance()
             day.timeInMillis = from
             day.add(Calendar.DAY_OF_YEAR, offset)
-            if (!prefs.isActiveOn(day)) continue
-            val times = prefs.timesFor(day)
+            val times = prefs.timesOn(day)
+            if (times.isEmpty()) continue
             var best: Long? = null
             for ((h, m) in times) {
                 val cal = day.clone() as Calendar
@@ -45,11 +45,10 @@ object Scheduler {
         return null
     }
 
-    /** Pornirile din programul săptămânal într-o zi anume (pentru evitarea dublurilor). */
-    fun weeklyTimesOn(prefs: Prefs, dayMillis: Long): List<Long> {
+    /** Pornirile programate (programe + porniri unice) într-o zi anume, în milisecunde. */
+    fun scheduledTimesOn(prefs: Prefs, dayMillis: Long): List<Long> {
         val day = Calendar.getInstance().apply { timeInMillis = dayMillis }
-        if (!prefs.isActiveOn(day)) return emptyList()
-        return prefs.timesFor(day).map { (h, m) ->
+        return prefs.timesOn(day).map { (h, m) ->
             (day.clone() as Calendar).apply {
                 set(Calendar.HOUR_OF_DAY, h)
                 set(Calendar.MINUTE, m)
@@ -67,7 +66,7 @@ object Scheduler {
         val window = 15 * 60_000L
         return CalendarEvents.upcoming(context, prefs, from).firstOrNull { tr ->
             tr.time > from + 30_000 &&
-                weeklyTimesOn(prefs, tr.time).none { kotlin.math.abs(it - tr.time) < window }
+                scheduledTimesOn(prefs, tr.time).none { kotlin.math.abs(it - tr.time) < window }
         }
     }
 

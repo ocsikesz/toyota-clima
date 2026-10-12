@@ -2,9 +2,11 @@ package ro.ocsike.toyotaclima
 
 import android.app.Activity
 import android.app.Dialog
+import android.app.TimePickerDialog
 import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -101,22 +103,29 @@ class DaySheet(
         }
     }
 
-    private data class Start(val time: Long, val what: String, val note: String?)
+    private data class Item(val time: Long, val what: String, val note: String?, val oneOffId: Long? = null)
 
-    /** Pornirile de clima din ziua aceea: program săptămânal + evenimente. */
+    private fun millisAt(t: Pair<Int, Int>): Long = (day.clone() as Calendar).apply {
+        set(Calendar.HOUR_OF_DAY, t.first)
+        set(Calendar.MINUTE, t.second)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /** Pornirile de clima din ziua aceea: programe, porniri unice și evenimente. */
     private fun renderClimate() {
         section("Climate")
         val now = System.currentTimeMillis()
-        val weekly = Scheduler.weeklyTimesOn(prefs, day.timeInMillis)
-        val starts = mutableListOf<Start>()
-        weekly.forEach { starts += Start(it, "Weekly schedule", null) }
+        val scheduled = prefs.startsOn(day)
+        val items = mutableListOf<Item>()
+        scheduled.forEach { s -> items += Item(millisAt(s.time), s.label, null, s.oneOffId) }
+        val scheduledMillis = scheduled.map { millisAt(it.time) }
 
-        val dayStart = startOfDay()
-        CalendarEvents.upcoming(activity, prefs, dayStart, days = 1)
+        CalendarEvents.upcoming(activity, prefs, startOfDay(), days = 1)
             .filter { Prefs.dateKey(Calendar.getInstance().apply { timeInMillis = it.time }) == key }
             .forEach { tr ->
-                val near = weekly.firstOrNull { abs(it - tr.time) < 15 * 60_000L }
-                starts += Start(
+                val near = scheduledMillis.firstOrNull { abs(it - tr.time) < 15 * 60_000L }
+                items += Item(
                     tr.time,
                     "For \"${tr.title}\" at ${hm.format(Date(tr.eventStart))}",
                     near?.let { "Already covered by the ${hm.format(Date(it))} start" },
@@ -126,16 +135,40 @@ class DaySheet(
         if (!prefs.enabled) {
             body.addView(text("The schedule is off. Turn it on from the switch on Home.", 15, muted))
         }
-        if (starts.isEmpty()) {
+        if (prefs.isSkipped(day) && prefs.rulesOn(day).isNotEmpty()) {
+            body.addView(text("Your schedules are skipped on this day.", 15, muted).apply {
+                setPadding(0, px(4), 0, 0)
+            })
+        }
+        if (items.isEmpty()) {
             body.addView(text("The climate doesn't start on this day.", 15, muted).apply {
                 setPadding(0, px(4), 0, 0)
             })
-            return
         }
-        starts.sortedBy { it.time }.forEach { s ->
+        items.sortedBy { it.time }.forEach { s ->
             val done = s.time < now
             val dimmed = done || s.note != null || !prefs.enabled
-            body.addView(row(hm.format(Date(s.time)), s.what, s.note, marker = true, dimmed = dimmed))
+            val removable = s.oneOffId != null && !done
+            body.addView(
+                row(
+                    hm.format(Date(s.time)), s.what, s.note, marker = true, dimmed = dimmed,
+                    actionLabel = if (removable) "Remove" else null,
+                    onAction = {
+                        prefs.oneOffs = prefs.oneOffs.filter { it.id != s.oneOffId }
+                        onChanged()
+                        render()
+                    },
+                ),
+            )
+        }
+        if (!past) {
+            body.addView(pill("+ Add a one-time start") {
+                TimePickerDialog(activity, { _, h, m ->
+                    prefs.oneOffs = prefs.oneOffs + OneOff(prefs.newId(), key, h to m)
+                    onChanged()
+                    render()
+                }, 8, 0, true).show()
+            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = px(8) })
         }
     }
 
@@ -178,30 +211,31 @@ class DaySheet(
         }
     }
 
-    /** Pornește/oprește doar ziua aceasta, fără să schimbe programul săptămânal. */
+    /** Sare programele repetitive doar în ziua aceasta (ex. concediu). Apare doar dacă există programe. */
     private fun renderSwitch() {
+        val rules = prefs.rulesOn(day)
+        if (rules.isEmpty()) return
         body.addView(View(activity).apply { setBackgroundColor(line) }, LinearLayout.LayoutParams(-1, px(1)).apply {
             topMargin = px(24)
             bottomMargin = px(12)
         })
         val r = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
         val labels = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        labels.addView(text("Start on schedule this day", 16, ink).apply { typeface = medium })
-        val weekly = day.get(Calendar.DAY_OF_WEEK) in prefs.days
-        val sub = when {
-            prefs.isException(day) -> "Changed for this date only"
-            weekly -> "Part of your weekly schedule"
-            else -> "Not in your weekly schedule"
+        labels.addView(text("Run my schedules this day", 16, ink).apply { typeface = medium })
+        val sub = if (prefs.isSkipped(day)) {
+            "Skipped for this date only"
+        } else {
+            rules.joinToString("; ") { Prefs.daysLabel(it.days) }
         }
         labels.addView(text(sub, 13, muted))
         r.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
         r.addView(Switch(activity).apply {
-            isChecked = prefs.isActiveOn(day)
+            isChecked = !prefs.isSkipped(day)
             thumbTintList = tint(heat, 0xFFBFC8D4.toInt())
             trackTintList = tint(heat, line)
-            contentDescription = "Start on schedule this day"
+            contentDescription = "Run my schedules this day"
             setOnCheckedChangeListener { _, checked ->
-                if (checked != prefs.isActiveOn(day)) prefs.toggleDate(day)
+                prefs.setSkipped(day, !checked)
                 onChanged()
                 render()
             }
@@ -233,6 +267,8 @@ class DaySheet(
         marker: Boolean,
         dimmed: Boolean,
         noteColor: Int = muted,
+        actionLabel: String? = null,
+        onAction: (() -> Unit)? = null,
     ): View {
         val r = LinearLayout(activity).apply {
             setPadding(0, px(8), 0, px(8))
@@ -253,7 +289,35 @@ class DaySheet(
         col.addView(text(what, 15, ink).apply { setLineSpacing(0f, 1.1f) })
         if (note != null) col.addView(text(note, 13, noteColor))
         r.addView(col, LinearLayout.LayoutParams(0, -2, 1f))
+        if (actionLabel != null && onAction != null) {
+            r.addView(text(actionLabel, 14, ink).apply {
+                typeface = medium
+                setPadding(px(10), px(2), 0, px(2))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { onAction() }
+            })
+        }
         return r
+    }
+
+    private fun pill(label: String, onClick: () -> Unit) = TextView(activity).apply {
+        text = label
+        textSize = 15f
+        typeface = medium
+        setTextColor(ink)
+        setPadding(px(18), px(10), px(18), px(10))
+        background = RippleDrawable(
+            ColorStateList.valueOf(0x33808080),
+            GradientDrawable().apply {
+                cornerRadius = 999 * dp
+                setStroke(px(1.5f), line)
+            },
+            null,
+        )
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { onClick() }
     }
 
     private fun text(s: String, sizeSp: Int, color: Int) = TextView(activity).apply {
