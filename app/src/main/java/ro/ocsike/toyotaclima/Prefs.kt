@@ -69,9 +69,10 @@ class Prefs(context: Context) {
     var coolTarget: Double
         get() = dbl("cool_target", 20.0)
         set(v) = putDbl("cool_target", v)
-    var defrostBelow: Double
-        get() = dbl("defrost_below", 3.0)
-        set(v) = putDbl("defrost_below", v)
+    /** La încălzire pornește și parbrizul + luneta (contra aburilor și gheții). La răcire niciodată. */
+    var glassHeat: Boolean
+        get() = sp.getBoolean("glass_heat", true)
+        set(v) = sp.edit().putBoolean("glass_heat", v).apply()
     var duration: Int
         get() = sp.getInt("duration", 10)
         set(v) = sp.edit().putInt("duration", v).apply()

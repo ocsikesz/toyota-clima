@@ -94,7 +94,7 @@ class MainActivity : Activity() {
     private lateinit var etVin: EditText
     private lateinit var etHeatBelow: EditText
     private lateinit var etHeatTarget: EditText
-    private lateinit var etDefrost: EditText
+    private lateinit var glassSwitch: Switch
     private lateinit var etCoolAbove: EditText
     private lateinit var etCoolTarget: EditText
     private lateinit var etDuration: EditText
@@ -404,7 +404,26 @@ class MainActivity : Activity() {
         group("Încălzire", heat)
         etHeatBelow = numberRow("Pornește când afară e sub", "°C")
         etHeatTarget = numberRow("Temperatura în mașină", "°C")
-        etDefrost = numberRow("Degivrare parbriz și lunetă sub", "°C")
+        val glassRow = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(px(14), px(8), 0, 0)
+        }
+        glassRow.addView(text("Încălzire parbriz și lunetă", 15, ink), weightParams())
+        glassSwitch = Switch(this).apply {
+            thumbTintList = checkedTint(heat, 0xFFBFC8D4.toInt())
+            trackTintList = checkedTint(heat, line)
+            contentDescription = "Încălzire parbriz și lunetă"
+            setOnCheckedChangeListener { _, checked ->
+                if (loading) return@setOnCheckedChangeListener
+                prefs.glassHeat = checked
+            }
+        }
+        glassRow.addView(glassSwitch)
+        root.addView(glassRow)
+        root.addView(
+            text("Împiedică aburii și gheața pe geamuri. Se folosește doar la încălzire.", 13, muted)
+                .apply { setPadding(px(14), px(2), 0, 0) },
+        )
 
         group("Răcire", cool)
         etCoolAbove = numberRow("Pornește când afară e peste", "°C")
@@ -648,7 +667,7 @@ class MainActivity : Activity() {
         etVin.setText(prefs.vin)
         etHeatBelow.setText(fmt(prefs.heatBelow))
         etHeatTarget.setText(fmt(prefs.heatTarget))
-        etDefrost.setText(fmt(prefs.defrostBelow))
+        glassSwitch.isChecked = prefs.glassHeat
         etCoolAbove.setText(fmt(prefs.coolAbove))
         etCoolTarget.setText(fmt(prefs.coolTarget))
         etDuration.setText(prefs.duration.toString())
@@ -673,7 +692,6 @@ class MainActivity : Activity() {
         prefs.vin = etVin.text.toString().trim()
         prefs.heatBelow = etHeatBelow.dbl(prefs.heatBelow)
         prefs.heatTarget = etHeatTarget.dbl(prefs.heatTarget)
-        prefs.defrostBelow = etDefrost.dbl(prefs.defrostBelow)
         prefs.coolAbove = etCoolAbove.dbl(prefs.coolAbove)
         prefs.coolTarget = etCoolTarget.dbl(prefs.coolTarget)
         prefs.duration = etDuration.text.toString().trim().toIntOrNull()?.coerceIn(1, 30) ?: prefs.duration

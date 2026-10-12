@@ -2,7 +2,7 @@
 
 Aplicație Android care pornește climatizarea Toyota la ore programate, în funcție de vremea de afară:
 
-- sub pragul de încălzire (implicit 12°C) → încălzire la 22°C, iar sub 3°C și degivrare parbriz și lunetă;
+- sub pragul de încălzire (implicit 12°C) → încălzire la 22°C, cu parbriz și lunetă încălzite (comutator în Setări, pornit implicit);
 - peste pragul de răcire (implicit 24°C) → răcire la 20°C;
 - între praguri → nu pornește nimic.
 

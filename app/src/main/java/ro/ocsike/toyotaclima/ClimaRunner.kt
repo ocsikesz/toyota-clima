@@ -24,8 +24,9 @@ object ClimaRunner {
         val t = String.format(Locale.US, "%.1f", temp)
         return when {
             temp < prefs.heatBelow -> {
-                val defrost = if (temp < prefs.defrostBelow) "on" else "off"
-                "Afară $t°C → încălzire la ${fmt(prefs.heatTarget)}°C, degivrare $defrost" to
+                val defrost = if (prefs.glassHeat) "on" else "off"
+                val glass = if (prefs.glassHeat) ", cu parbriz și lunetă" else ""
+                "Afară $t°C → încălzire la ${fmt(prefs.heatTarget)}°C$glass" to
                     startBody(prefs.heatTarget, prefs.duration, defrost)
             }
             temp > prefs.coolAbove -> {
@@ -69,7 +70,7 @@ object ClimaRunner {
                     val temp = try { outsideTemperature(prefs) } catch (e: Exception) { null }
                     val cool = temp != null && temp > prefs.coolAbove
                     val target = if (cool) prefs.coolTarget else prefs.heatTarget
-                    val defrost = if (temp != null && temp < prefs.defrostBelow) "on" else "off"
+                    val defrost = if (!cool && prefs.glassHeat) "on" else "off"
                     val vin = api.resolveVin()
                     val code = api.climateControl(vin, startBody(target, prefs.duration, defrost))
                     "Pornire manuală la ${fmt(target)}°C: ${explainCode(code)}"
