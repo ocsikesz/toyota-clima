@@ -25,7 +25,7 @@ object ClimaRunner {
         return when {
             temp < prefs.heatBelow -> {
                 val defrost = if (temp < prefs.defrostBelow) "on" else "off"
-                "Afară $t°C → încălzire la ${fmt(prefs.heatTarget)}°C, dezaburire $defrost" to
+                "Afară $t°C → încălzire la ${fmt(prefs.heatTarget)}°C, degivrare $defrost" to
                     startBody(prefs.heatTarget, prefs.duration, defrost)
             }
             temp > prefs.coolAbove -> {

@@ -42,7 +42,7 @@ DEFAULTS = {
     # Temperatura țintă în habitaclu
     "heat_target": 22.0,
     "cool_target": 20.0,
-    # Sub această temperatură se pornește și dezaburirea parbrizului/lunetei
+    # Sub această temperatură se pornește și degivrarea parbrizului și a lunetei
     "defrost_below": 3.0,
     # Durata climatizării, în minute
     "duration": 10,
@@ -81,7 +81,7 @@ def decide(temp: float, cfg: dict) -> V2RemoteClimateControlRequestModel | None:
         target = cfg["heat_target"]
         defrost = "on" if temp < cfg["defrost_below"] else "off"
         heating = HeatingOptionsModel(front_defroster=defrost, rear_defogger=defrost)
-        log(f"Afară {temp:.1f}°C -> ÎNCĂLZIRE la {target}°C, dezaburire: {defrost}")
+        log(f"Afară {temp:.1f}°C -> ÎNCĂLZIRE la {target}°C, degivrare: {defrost}")
     elif temp > cfg["cool_above"]:
         target = cfg["cool_target"]
         heating = HeatingOptionsModel(front_defroster="off", rear_defogger="off")

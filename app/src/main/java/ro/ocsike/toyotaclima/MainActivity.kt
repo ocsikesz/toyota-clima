@@ -260,7 +260,7 @@ class MainActivity : Activity() {
         group("Încălzire", heat)
         etHeatBelow = numberRow("Pornește când afară e sub", "°C")
         etHeatTarget = numberRow("Temperatura în mașină", "°C")
-        etDefrost = numberRow("Dezaburire parbriz sub", "°C")
+        etDefrost = numberRow("Degivrare parbriz și lunetă sub", "°C")
 
         group("Răcire", cool)
         etCoolAbove = numberRow("Pornește când afară e peste", "°C")
