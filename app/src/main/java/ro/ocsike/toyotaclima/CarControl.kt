@@ -136,6 +136,9 @@ object CarControl {
             val vin = api.resolveVin()
             val before = try { Status(api.vehicleStatus(vin)).updatedAt } catch (e: Exception) { null }
             val code = api.remoteCommand(vin, cmd.api)
+            if (code == null || code == ToyotaApi.RETURN_OK) {
+                prefs.unsupportedCommands = prefs.unsupportedCommands - cmd.api
+            }
             if (code != null && code != ToyotaApi.RETURN_OK) {
                 "${cmd.label}: respinsă de Toyota (cod $code)."
             } else if (cmd == Command.FIND) {
@@ -149,11 +152,21 @@ object CarControl {
                 }
             }
         } catch (e: ToyotaException) {
-            "${cmd.label} — eroare: ${e.message}"
+            val err = e.message ?: ""
+            if (UNSUPPORTED_CODES.any { err.contains(it) }) {
+                prefs.unsupportedCommands = prefs.unsupportedCommands + cmd.api
+                "${cmd.label}: mașina ta nu acceptă comanda asta de la distanță " +
+                    "(Toyota: vehicle not supported). Nu e o eroare a aplicației."
+            } else {
+                "${cmd.label} — eroare: $err"
+            }
         } catch (e: Exception) {
             "${cmd.label} — eroare: ${e.javaClass.simpleName}: ${e.message}"
         }
         prefs.log(message.replace("\n", " · "))
         return message
     }
+
+    /** 40041 = mașina nu suportă funcția; 40006 = comandă necunoscută pentru backend-ul EU. */
+    private val UNSUPPORTED_CODES = listOf("CTP-REMOTE-40041", "CTP-REMOTE-40006")
 }

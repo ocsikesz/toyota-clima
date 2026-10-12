@@ -88,6 +88,11 @@ class Prefs(context: Context) {
         get() = sp.getLong("next_run", 0)
         set(v) = sp.edit().putLong("next_run", v).apply()
 
+    /** Comenzi remote refuzate de Toyota pentru mașina asta (ex: "power-window-close"). */
+    var unsupportedCommands: Set<String>
+        get() = str("unsupported_cmds").split(',').filter { it.isNotBlank() }.toSet()
+        set(v) = putStr("unsupported_cmds", v.joinToString(","))
+
     /** Ore parsate: listă de (oră, minut). */
     fun parsedTimes(): List<Pair<Int, Int>> = times.split(',', ';', ' ')
         .map { it.trim() }

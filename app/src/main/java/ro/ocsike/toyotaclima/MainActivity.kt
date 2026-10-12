@@ -137,13 +137,14 @@ class MainActivity : Activity() {
         root.addView(tvCar)
         val carButtons = listOf(
             button("Verifică starea (geamuri, uși)") { runCar(null) },
-            button("Închide geamurile") { runCar(CarControl.Command.CLOSE_WINDOWS) },
-            button("Încuie ușile") { runCar(CarControl.Command.LOCK) },
-            button("Descuie ușile") { confirmUnlock() },
-            button("Găsește mașina (avarie)") { runCar(CarControl.Command.FIND) },
+            carButton(CarControl.Command.CLOSE_WINDOWS, "Închide geamurile"),
+            carButton(CarControl.Command.LOCK, "Încuie ușile"),
+            carButton(CarControl.Command.UNLOCK, "Descuie ușile"),
+            carButton(CarControl.Command.FIND, "Găsește mașina (avarie)"),
         )
         carButtons.forEach { root.addView(it) }
         actionButtons += carButtons
+        refreshCarButtons()
 
         section("Jurnal")
         tvLog = TextView(this).apply {
@@ -289,9 +290,41 @@ class MainActivity : Activity() {
             runOnUiThread {
                 actionButtons.forEach { it.isEnabled = true }
                 tvCar.text = msg
+                refreshCarButtons()
                 refreshStatus()
             }
         }.start()
+    }
+
+    private val carCmdButtons = mutableMapOf<CarControl.Command, Pair<Button, String>>()
+
+    private fun carButton(cmd: CarControl.Command, text: String): Button {
+        val b = button(text) { onCarCommand(cmd) }
+        carCmdButtons[cmd] = b to text
+        return b
+    }
+
+    /** Marchează butoanele comenzilor pe care Toyota le-a refuzat pentru mașina asta. */
+    private fun refreshCarButtons() {
+        val unsupported = prefs.unsupportedCommands
+        for ((cmd, pair) in carCmdButtons) {
+            val (b, text) = pair
+            b.text = if (cmd.api in unsupported) "$text — nesuportat de mașina ta" else text
+        }
+    }
+
+    private fun onCarCommand(cmd: CarControl.Command) {
+        val proceed = { if (cmd == CarControl.Command.UNLOCK) confirmUnlock() else runCar(cmd) }
+        if (cmd.api in prefs.unsupportedCommands) {
+            AlertDialog.Builder(this)
+                .setTitle("Comandă nesuportată")
+                .setMessage("Toyota a răspuns că mașina ta nu acceptă „${cmd.label}” de la distanță. Încerci totuși?")
+                .setPositiveButton("Încearcă") { _, _ -> proceed() }
+                .setNegativeButton("Renunță", null)
+                .show()
+        } else {
+            proceed()
+        }
     }
 
     private fun confirmUnlock() {
