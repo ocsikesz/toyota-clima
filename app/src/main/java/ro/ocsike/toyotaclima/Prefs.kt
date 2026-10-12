@@ -88,6 +88,48 @@ class Prefs(context: Context) {
         get() = sp.getLong("next_run", 0)
         set(v) = sp.edit().putLong("next_run", v).apply()
 
+    // Excepții pe date concrete, format "yyyy-MM-dd": zile pornite / oprite manual din calendar.
+    private fun dateSet(key: String): Set<String> =
+        str(key).split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+    private fun putDateSet(key: String, v: Set<String>) {
+        val today = dateKey(Calendar.getInstance())
+        putStr(key, v.filter { it >= today }.sorted().joinToString(","))
+    }
+
+    var onDates: Set<String>
+        get() = dateSet("on_dates")
+        set(v) = putDateSet("on_dates", v)
+    var offDates: Set<String>
+        get() = dateSet("off_dates")
+        set(v) = putDateSet("off_dates", v)
+
+    /** Pornește clima în ziua asta? Excepțiile au prioritate față de zilele săptămânii. */
+    fun isActiveOn(cal: Calendar): Boolean {
+        val k = dateKey(cal)
+        if (k in offDates) return false
+        if (k in onDates) return true
+        return cal.get(Calendar.DAY_OF_WEEK) in days
+    }
+
+    fun isException(cal: Calendar): Boolean {
+        val k = dateKey(cal)
+        return k in onDates || k in offDates
+    }
+
+    /** Inversează o singură zi din calendar, fără să schimbe programul săptămânal. */
+    fun toggleDate(cal: Calendar) {
+        val k = dateKey(cal)
+        val active = isActiveOn(cal)
+        val weekly = cal.get(Calendar.DAY_OF_WEEK) in days
+        val on = onDates.toMutableSet().apply { remove(k) }
+        val off = offDates.toMutableSet().apply { remove(k) }
+        if (active && weekly) off.add(k)
+        if (!active && !weekly) on.add(k)
+        onDates = on
+        offDates = off
+    }
+
     /** Ore parsate: listă de (oră, minut). */
     fun parsedTimes(): List<Pair<Int, Int>> = times.split(',', ';', ' ')
         .map { it.trim() }
@@ -119,5 +161,10 @@ class Prefs(context: Context) {
             Calendar.FRIDAY, Calendar.SATURDAY, Calendar.SUNDAY,
         )
         val DAY_LABELS = listOf("L", "Ma", "Mi", "J", "V", "S", "D")
+
+        fun dateKey(cal: Calendar): String = String.format(
+            Locale.US, "%04d-%02d-%02d",
+            cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH),
+        )
     }
 }

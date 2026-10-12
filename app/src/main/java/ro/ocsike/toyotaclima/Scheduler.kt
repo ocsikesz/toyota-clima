@@ -22,25 +22,27 @@ object Scheduler {
     /** Următorul moment de rulare după [from], sau null dacă nu e nimic programat. */
     fun nextTrigger(prefs: Prefs, from: Long = System.currentTimeMillis()): Long? {
         val times = prefs.parsedTimes()
-        val days = prefs.days
-        if (times.isEmpty() || days.isEmpty()) return null
-        var best: Long? = null
-        for (offset in 0..7) {
+        if (times.isEmpty()) return null
+        // Caută până la ~2 luni înainte, ca să treacă și peste concedii marcate în calendar.
+        for (offset in 0..62) {
+            val day = Calendar.getInstance()
+            day.timeInMillis = from
+            day.add(Calendar.DAY_OF_YEAR, offset)
+            if (!prefs.isActiveOn(day)) continue
+            var best: Long? = null
             for ((h, m) in times) {
-                val cal = Calendar.getInstance()
-                cal.timeInMillis = from
-                cal.add(Calendar.DAY_OF_YEAR, offset)
+                val cal = day.clone() as Calendar
                 cal.set(Calendar.HOUR_OF_DAY, h)
                 cal.set(Calendar.MINUTE, m)
                 cal.set(Calendar.SECOND, 0)
                 cal.set(Calendar.MILLISECOND, 0)
                 val t = cal.timeInMillis
                 if (t <= from + 30_000) continue
-                if (cal.get(Calendar.DAY_OF_WEEK) !in days) continue
                 if (best == null || t < best) best = t
             }
+            if (best != null) return best
         }
-        return best
+        return null
     }
 
     fun canScheduleExact(context: Context): Boolean {

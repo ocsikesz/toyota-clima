@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#0F1A2B</color>
+    <color name="ink">#E6ECF2</color>
+    <color name="muted">#8FA0B5</color>
+    <color name="line">#2A3B54</color>
+    <color name="heat">#F0954F</color>
+    <color name="cool">#6AA6D0</color>
+    <color name="hero_bg">#1B2C46</color>
+    <color name="hero_text">#F1F4F8</color>
+    <color name="on_heat">#14213D</color>
+</resources>

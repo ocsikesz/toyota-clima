@@ -15,7 +15,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="Toyota Clima"
-        android:theme="@android:style/Theme.Material.Light.DarkActionBar">
+        android:theme="@style/AppTheme">
 
         <activity
             android:name=".MainActivity"

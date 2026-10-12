@@ -12,13 +12,19 @@ Implicit: luni–vineri la 06:20 și 14:30. Orele, zilele, pragurile și locați
 
 1. Descarcă `toyota-clima.apk` din [Releases → latest](../../releases/tag/latest).
 2. Deschide-l pe telefon și permite instalarea din surse necunoscute.
-3. În aplicație: completează emailul și parola MyToyota, apasă **Salvează și programează**.
-4. Apasă **Permite alarme exacte** și **Scoate din optimizarea bateriei**.
-5. Apasă **Test**: verifică vremea și login-ul Toyota, fără să trimită comanda.
-6. Cu mașina încuiată, apasă **Pornește climatizarea acum** și verifică în MyToyota.
-7. Bifează **Programare activă** și salvează.
+3. În **Cont MyToyota și locație** completează emailul și parola. Totul se salvează automat.
+4. Dacă apare avertismentul portocaliu, apasă **Permite** și **Dezactivează** (alarme exacte, optimizare baterie).
+5. Apasă **Testează**: verifică vremea și contul Toyota, fără să pornească mașina.
+6. Pornește comutatorul din panoul de sus.
 
-Fiecare rulare programată trimite o notificare cu rezultatul și apare în jurnalul din aplicație.
+## Calendarul
+
+Zilele colorate sunt cele în care pornește clima. Programul de bază vine din zilele săptămânii
+(implicit luni–vineri). O atingere pe o zi din calendar o pornește sau o oprește doar pe ea,
+de exemplu un concediu sau o sâmbătă lucrătoare; punctul marchează aceste excepții.
+
+Orele de pornire se schimbă atingându-le; ținute apăsat se șterg.
+Fiecare pornire programată trimite o notificare cu rezultatul și apare în jurnal.
 
 ## Cerințe și limitări
 
