@@ -20,17 +20,6 @@ Implicit: luni–vineri la 06:20 și 14:30. Orele, zilele, pragurile și locați
 
 Fiecare rulare programată trimite o notificare cu rezultatul și apare în jurnalul din aplicație.
 
-## Mașina: geamuri și uși
-
-Secțiunea **Mașina** din aplicație:
-
-- **Verifică starea**: trezește mașina și arată ce geamuri sunt deschise și ce uși sunt descuiate (durează până la ~40 s).
-- **Închide geamurile**, **Încuie ușile**, **Descuie ușile** (cere confirmare): după comandă, aplicația așteaptă ca mașina să raporteze schimbarea și spune dacă s-a confirmat.
-- **Găsește mașina**: pornește avariile scurt.
-
-Pe serverele Toyota Europe, deschiderea geamurilor de la distanță nu e acceptată, doar închiderea.
-Fiecare verificare trezește modemul mașinii și consumă puțin din bateria de 12V, deci nu o apăsa în buclă.
-
 ## Cerințe și limitări
 
 - Mașina trebuie să aibă climatizare la distanță în MyToyota (Remote Services activ).

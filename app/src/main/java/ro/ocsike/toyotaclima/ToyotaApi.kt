@@ -31,9 +31,6 @@ class ToyotaApi(private val prefs: Prefs) {
 
         private const val VEHICLES_ENDPOINT = "/v2/vehicle/guid"
         private const val CLIMATE_CONTROL_ENDPOINT = "/v2/remote/climate-control"
-        private const val COMMAND_ENDPOINT = "/v1/global/remote/command"
-        private const val STATUS_ENDPOINT = "/v1/vehicle/status"
-        private const val STATUS_WAKE_ENDPOINT = "/v1/remote/status"
 
         const val RETURN_OK = "000000"
     }
@@ -240,25 +237,4 @@ class ToyotaApi(private val prefs: Prefs) {
         val payload = json.optJSONObject("payload") ?: return null
         return if (payload.has("returnCode")) payload.optString("returnCode") else null
     }
-
-    private fun returnCode(json: JSONObject): String? {
-        val payload = json.optJSONObject("payload") ?: return null
-        return if (payload.has("returnCode")) payload.optString("returnCode") else null
-    }
-
-    /**
-     * Comandă remote: "power-window-close", "door-lock", "door-unlock",
-     * "trunk-lock", "trunk-unlock", "hazard-on", "sound-horn".
-     * Returnează codul de răspuns, dacă există ("000000" = acceptat).
-     */
-    fun remoteCommand(vin: String, command: String): String? =
-        returnCode(api("POST", COMMAND_ENDPOINT, vin, JSONObject().put("command", command).put("beepCount", 0)))
-
-    /** Trezește mașina ca să raporteze starea acum. Consumă puțin din bateria de 12V. */
-    fun wakeStatus(vin: String): String? = returnCode(api("POST", STATUS_WAKE_ENDPOINT, vin))
-
-    /** Starea uși/geamuri din cache-ul Toyota (payload-ul brut). */
-    fun vehicleStatus(vin: String): JSONObject =
-        api("GET", STATUS_ENDPOINT, vin).optJSONObject("payload")
-            ?: throw ToyotaException("Toyota nu a trimis starea mașinii.")
 }
