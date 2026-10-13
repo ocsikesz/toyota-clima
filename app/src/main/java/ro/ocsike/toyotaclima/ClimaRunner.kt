@@ -8,15 +8,89 @@ object ClimaRunner {
 
     enum class Mode { SCHEDULED, TEST, START_NOW, STOP }
 
-    fun outsideTemperature(prefs: Prefs): Double {
+    private const val WEATHER_TIMEOUT = 6_000
+
+    fun outsideTemperature(prefs: Prefs): Double = weather(prefs).first
+
+    /**
+     * Temperatura de afară și o notă despre sursă (gol = Open-Meteo, normal).
+     * Ordine: Open-Meteo (2 încercări) → MET Norway → prognoza orară salvată la o citire anterioară
+     * → ultima temperatură primită, dacă are sub 6 ore.
+     * Timpi de așteptare scurți, ca rularea de la alarmă să încapă în timpul pe care îl dă Android.
+     */
+    fun weather(prefs: Prefs): Pair<Double, String> {
+        val errors = mutableListOf<String>()
+        for (delay in longArrayOf(0, 3_000)) {
+            if (delay > 0) Thread.sleep(delay)
+            try {
+                val t = openMeteo(prefs)
+                prefs.cacheTemperature(t)
+                return t to ""
+            } catch (e: Exception) {
+                errors += "Open-Meteo: ${e.message}"
+            }
+        }
+        try {
+            val t = metNorway(prefs)
+            prefs.cacheTemperature(t)
+            return t to " (weather from MET Norway, Open-Meteo was down)"
+        } catch (e: Exception) {
+            errors += "MET Norway: ${e.message}"
+        }
+        val forecast = prefs.forecastAt(System.currentTimeMillis())
+        if (forecast != null) {
+            return forecast to " (weather services down, using the saved forecast for this hour)"
+        }
+        val cached = prefs.cachedTemperature(maxAgeMs = 6 * 3_600_000L)
+        if (cached != null) {
+            val minutes = (System.currentTimeMillis() - cached.second) / 60_000
+            return cached.first to " (weather services down, using the reading from $minutes min ago)"
+        }
+        throw Exception("No weather available. " + errors.distinct().joinToString("; "))
+    }
+
+    private fun openMeteo(prefs: Prefs): Double {
         val url = String.format(
             Locale.US,
-            "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m",
+            "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m" +
+                "&hourly=temperature_2m&forecast_days=2&timeformat=unixtime",
             prefs.latitude, prefs.longitude,
         )
-        val resp = Http.request("GET", url)
-        if (resp.code != 200) throw Exception("Open-Meteo returned ${resp.code}")
-        return JSONObject(resp.body).getJSONObject("current").getDouble("temperature_2m")
+        val resp = Http.request("GET", url, connectTimeoutMs = WEATHER_TIMEOUT, readTimeoutMs = WEATHER_TIMEOUT)
+        if (resp.code != 200) throw Exception("returned ${resp.code}")
+        val json = JSONObject(resp.body)
+        try {
+            val hourly = json.getJSONObject("hourly")
+            val times = hourly.getJSONArray("time")
+            val temps = hourly.getJSONArray("temperature_2m")
+            prefs.cacheForecast((0 until times.length()).map { times.getLong(it) * 1000 to temps.getDouble(it) })
+        } catch (e: Exception) { /* prognoza e doar rezervă */ }
+        return json.getJSONObject("current").getDouble("temperature_2m")
+    }
+
+    /** Serviciul meteo norvegian: gratuit, fără cheie, cere un User-Agent care identifică aplicația. */
+    private fun metNorway(prefs: Prefs): Double {
+        val url = String.format(
+            Locale.US,
+            "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=%.4f&lon=%.4f",
+            prefs.latitude, prefs.longitude,
+        )
+        val resp = Http.request(
+            "GET", url,
+            mapOf("User-Agent" to "ToyClimate/1.0 github.com/ocsikesz/toyota-clima"),
+            connectTimeoutMs = WEATHER_TIMEOUT,
+            readTimeoutMs = WEATHER_TIMEOUT,
+        )
+        if (resp.code != 200) throw Exception("returned ${resp.code}")
+        val series = JSONObject(resp.body).getJSONObject("properties").getJSONArray("timeseries")
+        fun tempAt(i: Int) = series.getJSONObject(i).getJSONObject("data").getJSONObject("instant")
+            .getJSONObject("details").getDouble("air_temperature")
+        try {
+            prefs.cacheForecast((0 until minOf(series.length(), 48)).map { i ->
+                java.time.Instant.parse(series.getJSONObject(i).getString("time")).toEpochMilli() to tempAt(i)
+            })
+        } catch (e: Exception) { /* prognoza e doar rezervă */ }
+        return tempAt(0)
     }
 
     /** Construiește comanda în funcție de temperatură; null = nu pornim nimic. */
@@ -76,8 +150,9 @@ object ClimaRunner {
                     "Manual start at ${fmt(target)}°C: ${explainCode(code)}"
                 }
                 Mode.TEST, Mode.SCHEDULED -> {
-                    val temp = outsideTemperature(prefs)
-                    val (text, body) = decide(temp, prefs)
+                    val (temp, source) = weather(prefs)
+                    val (decision, body) = decide(temp, prefs)
+                    val text = decision + source
                     when {
                         mode == Mode.TEST -> {
                             // Test: verifică și login-ul Toyota, fără să trimită comanda

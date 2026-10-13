@@ -162,6 +162,36 @@ class Prefs(context: Context) {
         get() = sp.getLong("next_run", 0)
         set(v) = sp.edit().putLong("next_run", v).apply()
 
+    /** Ultima temperatură primită, de rezervă când serviciile meteo nu răspund. */
+    fun cacheTemperature(t: Double) {
+        sp.edit().putString("last_temp", t.toString()).putLong("last_temp_at", System.currentTimeMillis()).apply()
+    }
+
+    /** Prognoza orară (moment în ms, temperatură), salvată la fiecare citire meteo reușită. */
+    fun cacheForecast(points: List<Pair<Long, Double>>) {
+        if (points.isEmpty()) return
+        putStr("forecast", points.joinToString(",") { (t, v) -> "$t:$v" })
+    }
+
+    /** Temperatura din prognoza salvată pentru momentul [at], dacă există un punct la cel mult 90 de minute. */
+    fun forecastAt(at: Long): Double? = str("forecast").split(',')
+        .mapNotNull { p ->
+            val (t, v) = p.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
+            val time = t.toLongOrNull() ?: return@mapNotNull null
+            val temp = v.toDoubleOrNull() ?: return@mapNotNull null
+            time to temp
+        }
+        .minByOrNull { kotlin.math.abs(it.first - at) }
+        ?.takeIf { kotlin.math.abs(it.first - at) <= 90 * 60_000L }
+        ?.second
+
+    /** (temperatură, momentul citirii) dacă e mai nouă de [maxAgeMs], altfel null. */
+    fun cachedTemperature(maxAgeMs: Long): Pair<Double, Long>? {
+        val t = sp.getString("last_temp", null)?.toDoubleOrNull() ?: return null
+        val at = sp.getLong("last_temp_at", 0)
+        return if (System.currentTimeMillis() - at <= maxAgeMs) t to at else null
+    }
+
     /** Titlul evenimentului din calendar pentru următoarea rulare; gol = program săptămânal. */
     var nextLabel: String
         get() = str("next_label")

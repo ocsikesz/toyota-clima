@@ -15,13 +15,15 @@ object Http {
         headers: Map<String, String> = emptyMap(),
         body: String? = null,
         followRedirects: Boolean = true,
+        connectTimeoutMs: Int = 20_000,
+        readTimeoutMs: Int = 30_000,
     ): HttpResponse {
         val conn = URL(url).openConnection() as HttpURLConnection
         try {
             conn.requestMethod = method
             conn.instanceFollowRedirects = followRedirects
-            conn.connectTimeout = 20_000
-            conn.readTimeout = 30_000
+            conn.connectTimeout = connectTimeoutMs
+            conn.readTimeout = readTimeoutMs
             conn.useCaches = false
             for ((k, v) in headers) conn.setRequestProperty(k, v)
             if (body != null) {
