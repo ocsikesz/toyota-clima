@@ -15,7 +15,7 @@ object ClimaRunner {
     /**
      * Temperatura de afară și o notă despre sursă (gol = Open-Meteo, normal).
      * Ordine: Open-Meteo (2 încercări) → MET Norway → prognoza orară salvată la o citire anterioară
-     * → ultima temperatură primită, dacă are sub 6 ore.
+     * → ultima temperatură primită, dacă are sub 6 ore → citirea de la aceeași oră din zilele trecute.
      * Timpi de așteptare scurți, ca rularea de la alarmă să încapă în timpul pe care îl dă Android.
      */
     fun weather(prefs: Prefs): Pair<Double, String> {
@@ -45,6 +45,13 @@ object ClimaRunner {
         if (cached != null) {
             val minutes = (System.currentTimeMillis() - cached.second) / 60_000
             return cached.first to " (weather services down, using the reading from $minutes min ago)"
+        }
+        val sameTime = prefs.sameTimeOfDayTemperature(System.currentTimeMillis())
+        if (sameTime != null) {
+            val days = ((System.currentTimeMillis() - sameTime.second + 12 * 3_600_000L) / 86_400_000L).coerceAtLeast(1)
+            val at = java.text.SimpleDateFormat("HH:mm", Locale.US).format(java.util.Date(sameTime.second))
+            val whenText = if (days == 1L) "yesterday at $at" else "$days days ago at $at"
+            return sameTime.first to " (weather services down, using the reading from $whenText)"
         }
         throw Exception("No weather available. " + errors.distinct().joinToString("; "))
     }

@@ -164,7 +164,40 @@ class Prefs(context: Context) {
 
     /** Ultima temperatură primită, de rezervă când serviciile meteo nu răspund. */
     fun cacheTemperature(t: Double) {
-        sp.edit().putString("last_temp", t.toString()).putLong("last_temp_at", System.currentTimeMillis()).apply()
+        val now = System.currentTimeMillis()
+        // Istoric scurt (ultimele ~4 zile) pentru rezerva „aceeași oră, zilele trecute”.
+        val history = temperatureHistory().filter { now - it.first < 4 * 86_400_000L } + (now to t)
+        sp.edit()
+            .putString("last_temp", t.toString())
+            .putLong("last_temp_at", now)
+            .putString("temp_history", history.takeLast(60).joinToString(",") { (at, v) -> "$at:$v" })
+            .apply()
+    }
+
+    private fun temperatureHistory(): List<Pair<Long, Double>> = str("temp_history").split(',').mapNotNull { p ->
+        val parts = p.split(':')
+        if (parts.size != 2) return@mapNotNull null
+        val at = parts[0].toLongOrNull() ?: return@mapNotNull null
+        val v = parts[1].toDoubleOrNull() ?: return@mapNotNull null
+        at to v
+    }
+
+    /**
+     * Cea mai recentă citire din zilele trecute (până la 3 zile) făcută la aceeași oră a zilei, ±90 de minute.
+     * Întoarce (temperatură, momentul citirii) sau null.
+     */
+    fun sameTimeOfDayTemperature(now: Long): Pair<Double, Long>? {
+        fun minuteOfDay(ms: Long) = Calendar.getInstance().apply { timeInMillis = ms }
+            .let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
+        val target = minuteOfDay(now)
+        return temperatureHistory()
+            .filter { (at, _) -> now - at in 12 * 3_600_000L..3 * 86_400_000L + 90 * 60_000L }
+            .filter { (at, _) ->
+                val d = kotlin.math.abs(minuteOfDay(at) - target)
+                minOf(d, 1440 - d) <= 90
+            }
+            .maxByOrNull { it.first }
+            ?.let { (at, v) -> v to at }
     }
 
     /** Prognoza orară (moment în ms, temperatură), salvată la fiecare citire meteo reușită. */
