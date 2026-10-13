@@ -354,6 +354,23 @@ class MainActivity : Activity() {
         sectionTitle("Toyota account", first = true)
         etUser = field("Email", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
         etPass = field("Password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        root.addView(text("Show password", 14, ink).apply {
+            typeface = medium
+            setPadding(0, px(4), 0, px(4))
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                val hidden = (etPass.inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.inputType = InputType.TYPE_CLASS_TEXT or
+                    if (hidden) InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else InputType.TYPE_TEXT_VARIATION_PASSWORD
+                etPass.typeface = Typeface.DEFAULT
+                etPass.setSelection(etPass.text.length)
+                text = if (hidden) "Hide password" else "Show password"
+            }
+        })
+        root.addView(
+            text("Stored encrypted on this phone and sent only to Toyota.", 12, muted),
+        )
         etVin = field("VIN (leave empty for the first car on the account)", InputType.TYPE_CLASS_TEXT)
 
         buildSchedule()

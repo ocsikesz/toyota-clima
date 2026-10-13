@@ -28,9 +28,23 @@ class Prefs(context: Context) {
     var username: String
         get() = str("username")
         set(v) = putStr("username", v)
+    /**
+     * Parola MyToyota, salvată criptat (Android Keystore). O parolă veche salvată ca text simplu
+     * se mută automat în forma criptată la prima citire, iar textul simplu se șterge.
+     */
     var password: String
-        get() = str("password")
-        set(v) = putStr("password", v)
+        get() {
+            val enc = str("password_enc")
+            if (enc.isNotEmpty()) return Secure.decrypt(enc) ?: ""
+            val legacy = str("password")
+            if (legacy.isNotEmpty()) password = legacy
+            return legacy
+        }
+        set(v) {
+            val e = sp.edit().remove("password")
+            if (v.isEmpty()) e.remove("password_enc") else e.putString("password_enc", Secure.encrypt(v))
+            e.apply()
+        }
     var vin: String
         get() = str("vin")
         set(v) = putStr("vin", v)
