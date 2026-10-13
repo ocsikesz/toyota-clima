@@ -45,6 +45,15 @@ class Prefs(context: Context) {
             if (v.isEmpty()) e.remove("password_enc") else e.putString("password_enc", Secure.encrypt(v))
             e.apply()
         }
+    /** Mută o parolă veche, salvată ca text simplu, în forma criptată și șterge textul simplu. */
+    fun migratePassword() {
+        val legacy = str("password")
+        if (legacy.isNotEmpty()) password = legacy
+    }
+
+    /** Există o parolă salvată? Fără s-o decripteze. */
+    fun hasPassword(): Boolean = str("password_enc").isNotEmpty() || str("password").isNotEmpty()
+
     var vin: String
         get() = str("vin")
         set(v) = putStr("vin", v)

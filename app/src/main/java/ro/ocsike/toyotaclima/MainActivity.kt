@@ -93,6 +93,9 @@ class MainActivity : Activity() {
     private lateinit var oneOffBox: LinearLayout
     private lateinit var etUser: EditText
     private lateinit var etPass: EditText
+    private lateinit var passStatus: TextView
+    private lateinit var passChange: TextView
+    private lateinit var passEditor: LinearLayout
     private lateinit var etVin: EditText
     private lateinit var etHeatBelow: EditText
     private lateinit var etHeatTarget: EditText
@@ -117,6 +120,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        prefs.migratePassword()
         buildUi()
         loadValues()
         showTab(savedInstanceState?.getInt("tab", TAB_HOME) ?: TAB_HOME)
@@ -353,30 +357,87 @@ class MainActivity : Activity() {
 
         sectionTitle("Toyota account", first = true)
         etUser = field("Email", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
-        etPass = field("Password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
-        root.addView(text("Show password", 14, ink).apply {
-            typeface = medium
-            setPadding(0, px(4), 0, px(4))
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                val hidden = (etPass.inputType and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_TEXT_VARIATION_PASSWORD
-                etPass.inputType = InputType.TYPE_CLASS_TEXT or
-                    if (hidden) InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD else InputType.TYPE_TEXT_VARIATION_PASSWORD
-                etPass.typeface = Typeface.DEFAULT
-                etPass.setSelection(etPass.text.length)
-                text = if (hidden) "Hide password" else "Show password"
-            }
-        })
-        root.addView(
-            text("Stored encrypted on this phone and sent only to Toyota.", 12, muted),
-        )
+        buildPassword()
         etVin = field("VIN (leave empty for the first car on the account)", InputType.TYPE_CLASS_TEXT)
 
         buildSchedule()
         buildTemperatures()
         buildEvents()
         buildTest()
+    }
+
+    /**
+     * Parola e doar pentru scriere: cea salvată nu se încarcă și nu se afișează niciodată.
+     * Se poate doar înlocui cu una nouă.
+     */
+    private fun buildPassword() {
+        root.addView(text("Password", 13, muted).apply { setPadding(0, px(10), 0, 0) })
+        val statusRow = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, px(6), 0, px(6))
+        }
+        passStatus = text("", 16, ink)
+        statusRow.addView(passStatus, weightParams())
+        passChange = pill("Change", filled = false) { openPasswordEditor() }
+        statusRow.addView(passChange)
+        root.addView(statusRow)
+
+        passEditor = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        etPass = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            isSingleLine = true
+            textSize = 16f
+            hint = "New password"
+            setTextColor(ink)
+            backgroundTintList = ColorStateList.valueOf(line)
+            contentDescription = "New password"
+        }
+        passEditor.addView(etPass)
+        val buttons = LinearLayout(this).apply { setPadding(0, px(6), 0, 0) }
+        buttons.addView(pill("Save", filled = true) { savePassword() })
+        buttons.addView(pill("Cancel", filled = false) {
+            etPass.setText("")
+            refreshPassword()
+        }, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = px(8) })
+        passEditor.addView(buttons)
+        root.addView(passEditor)
+        root.addView(
+            text("Stored encrypted on this phone, never shown again, and sent only to Toyota.", 12, muted)
+                .apply { setPadding(0, px(6), 0, 0) },
+        )
+    }
+
+    private fun openPasswordEditor() {
+        passEditor.visibility = View.VISIBLE
+        passChange.visibility = View.GONE
+        etPass.setText("")
+        etPass.requestFocus()
+    }
+
+    private fun savePassword() {
+        val pw = etPass.text.toString()
+        if (pw.isEmpty()) {
+            Toast.makeText(this, "Type the new password first.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        prefs.password = pw
+        ToyotaApi(prefs).clearTokens()
+        etPass.setText("")
+        currentFocus?.let {
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                .hideSoftInputFromWindow(it.windowToken, 0)
+        }
+        refreshPassword()
+        Toast.makeText(this, "Password saved", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Arată doar dacă există o parolă salvată, niciodată parola în sine. */
+    private fun refreshPassword() {
+        val saved = prefs.hasPassword()
+        passStatus.text = if (saved) "Saved ••••••••" else "Not set"
+        passStatus.setTextColor(if (saved) ink else muted)
+        passEditor.visibility = if (saved) View.GONE else View.VISIBLE
+        passChange.visibility = if (saved) View.VISIBLE else View.GONE
     }
 
     private fun buildSchedule() {
@@ -672,7 +733,7 @@ class MainActivity : Activity() {
         loading = true
         heroSwitch.isChecked = prefs.enabled
         etUser.setText(prefs.username)
-        etPass.setText(prefs.password)
+        refreshPassword()
         etVin.setText(prefs.vin)
         etHeatBelow.setText(fmt(prefs.heatBelow))
         etHeatTarget.setText(fmt(prefs.heatTarget))
@@ -692,12 +753,10 @@ class MainActivity : Activity() {
     private fun saveFields() {
         if (loading) return
         val newUser = etUser.text.toString().trim()
-        val newPass = etPass.text.toString()
-        if (newUser != prefs.username || newPass != prefs.password) {
+        if (newUser != prefs.username) {
             ToyotaApi(prefs).clearTokens()
         }
         prefs.username = newUser
-        prefs.password = newPass
         prefs.vin = etVin.text.toString().trim()
         prefs.heatBelow = etHeatBelow.dbl(prefs.heatBelow)
         prefs.heatTarget = etHeatTarget.dbl(prefs.heatTarget)
